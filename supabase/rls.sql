@@ -64,9 +64,9 @@ create policy "Users can view their own grants"
 on public.leave_grants for select
 using (auth.uid() = user_id);
 
-create policy "Admins can view all grants"
+create policy "Admins and Managers can view all grants"
 on public.leave_grants for select
-using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+using (public.is_admin_or_manager());
 
 create policy "Admins can insert grants"
 on public.leave_grants for insert

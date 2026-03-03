@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
-import type { Profile } from '../../types/database';
+import type { Profile, LeaveBalanceView } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle, Trash2 } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle, Trash2, PieChart } from 'lucide-react';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
@@ -20,7 +20,7 @@ export function UserManagement() {
   const [grantDays, setGrantDays] = useState('15');
   const [grantReason, setGrantReason] = useState('定期付与');
 
-  const { data: users, isLoading, error } = useQuery({
+  const { data: users, isLoading: usersLoading, error: usersError } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -29,6 +29,18 @@ export function UserManagement() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as Profile[];
+    },
+    enabled: !!adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'manager'),
+  });
+
+  const { data: balances, isLoading: balancesLoading } = useQuery({
+    queryKey: ['allBalances'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('leave_balance_view')
+        .select('*');
+      if (error) throw error;
+      return data as LeaveBalanceView[];
     },
     enabled: !!adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'manager'),
   });
@@ -100,7 +112,7 @@ export function UserManagement() {
       setGrantDays('15');
       setGrantReason('定期付与');
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['leaveBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['allBalances'] });
     },
     onError: (err: any) => {
       alert('エラーが発生しました: ' + err.message);
@@ -126,21 +138,21 @@ export function UserManagement() {
       alert('自分自身を削除することはできません。');
       return;
     }
-    if (window.confirm(`${email} さんを削除してもよろしいですか？\nこの操作は取り消しできず、関連するすべての休暇申請も削除されます。`)) {
+    if (window.confirm(`${email} さんを削除してもよろしいですか？\nこの操作は取り消しできず、関連するすべての休暇申請도削除됩니다.`)) {
       deleteUserMutation.mutate(userId);
     }
   };
 
   if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限がありません。" />;
-  if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorState message="ユーザーデータの取得中にエラーが発生しました。" />;
+  if (usersLoading || balancesLoading) return <LoadingSpinner />;
+  if (usersError) return <ErrorState message="ユーザーデータの取得中にエラーが発生しました。" />;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex justify-between items-center px-1">
         <h1 className="text-xl md:text-2xl font-black text-slate-900 flex items-center">
           <UserCheck className="w-6 h-6 md:w-7 md:h-7 mr-2 md:mr-3 text-indigo-600" />
-          ユーザー権限管理
+          ユーザー権限・休暇管理
         </h1>
       </div>
 
@@ -171,10 +183,10 @@ export function UserManagement() {
             <table className="min-w-full divide-y divide-slate-100">
               <thead>
                 <tr className="bg-slate-50/30">
-                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">メールアドレス / 氏名</th>
+                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">氏名 / メールアドレス</th>
                   <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">役割</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">チームカレンダー参照権限</th>
-                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">登録日</th>
+                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">休暇残高 (付与/使用/残)</th>
+                  <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">カレンダー参照</th>
                   <th className="px-8 py-4 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">操作</th>
                 </tr>
               </thead>
@@ -184,12 +196,13 @@ export function UserManagement() {
                   const isChecked = targetIsStaff || !!u.can_view_all_leaves;
                   const isUpdating = updatePermissionMutation.isPending && updatePermissionMutation.variables?.userId === u.id;
                   const canToggle = u.role === 'employee' && !updatePermissionMutation.isPending;
+                  const balance = balances?.find(b => b.user_id === u.id);
 
                   return (
                     <tr key={u.id} className="hover:bg-indigo-50/20 transition-all duration-200 group">
                       <td className="px-8 py-5">
-                        <div className="text-sm font-bold text-slate-900">{u.email}</div>
-                        <div className="text-xs font-medium text-slate-400 mt-0.5">{u.display_name || '名前未設定'}</div>
+                        <div className="text-sm font-bold text-slate-900">{u.display_name || '名前未設定'}</div>
+                        <div className="text-xs font-medium text-slate-400 mt-0.5">{u.email}</div>
                       </td>
                       <td className="px-8 py-5">
                         <select
@@ -202,6 +215,17 @@ export function UserManagement() {
                           <option value="manager">マネージャー</option>
                           <option value="admin">管理者</option>
                         </select>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-xs font-bold text-slate-400">{balance?.granted_sum || 0}</span>
+                          <span className="text-slate-200">/</span>
+                          <span className="text-xs font-bold text-red-400">{balance?.used_sum || 0}</span>
+                          <span className="text-slate-200">/</span>
+                          <span className="text-sm font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">
+                            {balance?.balance || 0} <span className="text-[10px] font-bold text-slate-400 ml-0.5">日</span>
+                          </span>
+                        </div>
                       </td>
                       <td className="px-8 py-5">
                         <div className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl border transition-all ${
@@ -223,9 +247,6 @@ export function UserManagement() {
                             {targetIsStaff ? '常に許可' : (u.can_view_all_leaves ? '常に許可' : '参照制限')}
                           </span>
                         </div>
-                      </td>
-                      <td className="px-8 py-5 whitespace-nowrap text-xs font-bold text-slate-400">
-                        {new Date(u.created_at).toLocaleDateString('ja-JP')}
                       </td>
                       <td className="px-8 py-5 text-right space-x-2">
                         <button 
@@ -263,6 +284,7 @@ export function UserManagement() {
               const isChecked = targetIsStaff || !!u.can_view_all_leaves;
               const isUpdating = updatePermissionMutation.isPending && updatePermissionMutation.variables?.userId === u.id;
               const canToggle = u.role === 'employee' && !updatePermissionMutation.isPending;
+              const balance = balances?.find(b => b.user_id === u.id);
 
               return (
                 <div key={u.id} className="p-6 space-y-5">
@@ -272,8 +294,8 @@ export function UserManagement() {
                         <User className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="text-sm font-black text-slate-900 leading-tight truncate max-w-[180px]">{u.email}</div>
-                        <div className="text-xs font-bold text-slate-400 mt-0.5">{u.display_name || '名前未設定'}</div>
+                        <div className="text-sm font-black text-slate-900 leading-tight truncate max-w-[180px]">{u.display_name || '名前未設定'}</div>
+                        <div className="text-xs font-bold text-slate-400 mt-0.5">{u.email}</div>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -297,6 +319,28 @@ export function UserManagement() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 pt-2">
+                    {/* Leave Balance for Mobile */}
+                    <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between">
+                      <div className="flex items-center">
+                        <PieChart className="w-4 h-4 text-indigo-500 mr-2" />
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">休暇残高</span>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <div className="text-center">
+                          <div className="text-[8px] font-black text-slate-400 uppercase">付与</div>
+                          <div className="text-xs font-bold text-slate-600">{balance?.granted_sum || 0}</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-[8px] font-black text-slate-400 uppercase">使用</div>
+                          <div className="text-xs font-bold text-red-400">{balance?.used_sum || 0}</div>
+                        </div>
+                        <div className="bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-100 text-center">
+                          <div className="text-[8px] font-black text-slate-400 uppercase">残り</div>
+                          <div className="text-sm font-black text-indigo-600">{balance?.balance || 0}日</div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">役割設定</label>
                       <select
