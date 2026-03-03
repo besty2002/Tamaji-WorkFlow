@@ -127,9 +127,17 @@ export function UserManagement() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {users?.map((u) => {
-                  const isUserAdminOrManager = u.role !== 'employee';
-                  const hasViewPermission = isUserAdminOrManager || u.can_view_all_leaves;
+                  const targetIsStaff = u.role === 'admin' || u.role === 'manager';
+                  const isEmployee = u.role === 'employee';
                   
+                  // Logical check for the UI state
+                  const isChecked = targetIsStaff || u.can_view_all_leaves;
+                  
+                  // Permission to toggle: 
+                  // 1. Current user must be Admin or Manager (already handled by page access)
+                  // 2. Target must be an Employee (Staff are always allowed and cannot be disabled)
+                  const canToggle = isEmployee && !updatePermissionMutation.isPending;
+
                   return (
                     <tr key={u.id} className="hover:bg-indigo-50/20 transition-all duration-200 group">
                       <td className="px-8 py-5">
@@ -150,21 +158,21 @@ export function UserManagement() {
                       </td>
                       <td className="px-8 py-5">
                         <div className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl border transition-all ${
-                          hasViewPermission ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-slate-100 border-slate-300 text-slate-400'
+                          isChecked ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-slate-100 border-slate-300 text-slate-400'
                         }`}>
-                          <div className="relative inline-flex items-center cursor-pointer">
+                          <div className={`relative inline-flex items-center ${canToggle ? 'cursor-pointer' : 'cursor-default'}`}>
                             <input
                               type="checkbox"
-                              checked={hasViewPermission}
-                              disabled={isUserAdminOrManager || updatePermissionMutation.isPending}
+                              checked={isChecked}
+                              disabled={!canToggle}
                               onChange={(e) => updatePermissionMutation.mutate({ userId: u.id, canView: e.target.checked })}
                               className="sr-only peer"
                             />
                             <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                           </div>
                           <span className="text-[12px] font-black uppercase tracking-tight flex items-center">
-                            {hasViewPermission ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                            {hasViewPermission ? '常に許可' : '参照制限'}
+                            {isChecked ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+                            {targetIsStaff ? '常に許可' : (u.can_view_all_leaves ? '常に許可' : '参照制限')}
                           </span>
                         </div>
                       </td>
