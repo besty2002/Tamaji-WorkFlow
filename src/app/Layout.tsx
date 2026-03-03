@@ -56,17 +56,16 @@ export function Layout() {
                     {item.label}
                   </Link>
                 ))}
-              ...
-                          <div className="flex items-center">
-                            <div className="mr-4 text-sm text-gray-700">
-                              <Link to="/profile" className="hover:text-indigo-600 transition-colors">
-                                {profile?.display_name || profile?.email}
-                              </Link> ({profile?.role ? roleLabels[profile.role] : ''})
-                            </div>
-                            <button
-                              onClick={handleSignOut}
-              ...
-
+              </nav>
+            </div>
+            <div className="flex items-center">
+              <div className="mr-4 text-sm text-gray-700">
+                <Link to="/profile" className="hover:text-indigo-600 transition-colors">
+                  {profile?.display_name || profile?.email}
+                </Link> ({profile?.role ? roleLabels[profile.role] : ''})
+              </div>
+              <button
+                onClick={handleSignOut}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-colors"
                 title="ログアウト"
               >
