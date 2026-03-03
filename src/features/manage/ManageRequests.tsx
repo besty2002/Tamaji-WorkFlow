@@ -36,7 +36,7 @@ export function ManageRequests() {
         .from('leave_requests')
         .select(`
           *,
-          profiles (
+          profiles:user_id (
             id,
             display_name,
             email
