@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { Calendar, ChevronRight } from 'lucide-react';
 
 const typeLabels: Record<string, string> = {
   paid_leave: '年次有給休暇',
@@ -64,21 +65,24 @@ export function RequestList() {
   const filteredRequests = requests?.filter(req => filterStatus === 'all' || req.status === filterStatus) || [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">自分の申請一覧</h1>
+        <h1 className="text-2xl font-bold text-slate-900 flex items-center">
+          <Calendar className="w-6 h-6 mr-2 text-indigo-600" />
+          自分の申請一覧
+        </h1>
         <Link to="/requests/new">
-          <Button>新規申請</Button>
+          <Button className="rounded-xl">新規申請</Button>
         </Link>
       </div>
 
-      <Card>
-        <CardHeader className="flex justify-between items-center py-3">
-          <span>申請履歴</span>
+      <Card className="border-none shadow-lg shadow-slate-200/50 overflow-hidden">
+        <CardHeader className="flex justify-between items-center bg-slate-50/50 py-4">
+          <span className="text-sm font-bold text-slate-600 tracking-wide uppercase">申請履歴</span>
           <select 
             value={filterStatus} 
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="ml-4 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            className="text-sm border-slate-200 rounded-lg shadow-sm focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 font-medium"
           >
             <option value="all">すべてのステータス</option>
             <option value="draft">下書き</option>
@@ -91,37 +95,43 @@ export function RequestList() {
         <CardContent className="p-0">
           {filteredRequests.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50/30">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日付</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">種類</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日付</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日数</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">種類</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">ステータス</th>
+                    <th className="px-6 py-4 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">操作</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-slate-50">
                   {filteredRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {format(new Date(req.start_date), 'yyyy年MM月dd일', { locale: ja })}
-                        {req.start_date !== req.end_date && ` - ${format(new Date(req.end_date), 'yyyy年MM月dd일', { locale: ja })}`}
-                        {req.is_half_day && ` (${req.half_day_type === 'AM' ? '午前' : '午後'})`}
+                    <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">
+                        {format(new Date(req.start_date), 'yyyy/MM/dd', { locale: ja })}
+                        {req.start_date !== req.end_date && ` 〜`}
+                        {req.is_half_day && <span className="ml-2 text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded border border-amber-100">{req.half_day_type}</span>}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-indigo-600">
+                        {req.num_days || (req.is_half_day ? 0.5 : '-')} <span className="text-[10px] font-bold text-slate-400">日</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-slate-500">
                         {typeLabels[req.type]}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                          ${req.status === 'approved' ? 'bg-green-100 text-green-800' : 
-                            req.status === 'rejected' ? 'bg-red-100 text-red-800' : 
-                            req.status === 'submitted' ? 'bg-blue-100 text-blue-800' : 
-                            'bg-gray-100 text-gray-800'}`}>
+                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider
+                          ${req.status === 'approved' ? 'bg-green-100 text-green-700' : 
+                            req.status === 'rejected' ? 'bg-red-100 text-red-700' : 
+                            req.status === 'submitted' ? 'bg-blue-100 text-blue-700' : 
+                            'bg-slate-100 text-slate-600'}`}>
                           {statusLabels[req.status]}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <Link to={`/requests/${req.id}`} className="text-indigo-600 hover:text-indigo-900">詳細</Link>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
+                        <Link to={`/requests/${req.id}`} className="text-slate-400 hover:text-indigo-600 transition-colors inline-flex items-center">
+                          詳細 <ChevronRight className="w-4 h-4 ml-0.5" />
+                        </Link>
                         {(req.status === 'draft' || req.status === 'submitted') && (
                           <button 
                             onClick={() => {
@@ -129,7 +139,7 @@ export function RequestList() {
                                 cancelMutation.mutate(req.id);
                               }
                             }}
-                            className="text-red-600 hover:text-red-900"
+                            className="text-red-400 hover:text-red-600 transition-colors"
                             disabled={cancelMutation.isPending}
                           >
                             キャンセル
@@ -142,7 +152,9 @@ export function RequestList() {
               </table>
             </div>
           ) : (
-            <EmptyState message="申請が見つかりませんでした。" />
+            <div className="py-20 flex flex-col items-center">
+              <EmptyState message="申請が見つかりませんでした。" />
+            </div>
           )}
         </CardContent>
       </Card>

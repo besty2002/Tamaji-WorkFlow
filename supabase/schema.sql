@@ -10,6 +10,14 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
+-- Public Holidays table
+create table if not exists public.public_holidays (
+  id uuid primary key default gen_random_uuid(),
+  date date not null unique,
+  name text not null,
+  created_at timestamptz default now()
+);
+
 -- Leave Grants table
 create table if not exists public.leave_grants (
   id uuid primary key default gen_random_uuid(),
@@ -30,6 +38,7 @@ create table if not exists public.leave_requests (
   end_date date not null,
   is_half_day boolean default false,
   half_day_type text check (half_day_type in ('AM', 'PM')),
+  num_days numeric(4,1) not null default 0, -- Explicit business days
   reason text,
   status text check (status in ('draft', 'submitted', 'approved', 'rejected', 'cancelled')) default 'draft',
   manager_comment text,
@@ -52,28 +61,18 @@ create trigger leave_requests_updated_at
 before update on public.leave_requests
 for each row execute function public.handle_updated_at();
 
--- View to calculate leave balance
+-- View to calculate leave balance (Updated to use num_days column)
 create or replace view public.leave_balance_view as
 select 
   p.id as user_id,
   coalesce(sum(g.days), 0) as granted_sum,
   coalesce((
-    select sum(
-      case 
-        when is_half_day then 0.5 
-        else (end_date - start_date + 1)
-      end
-    )
+    select sum(num_days)
     from public.leave_requests r
     where r.user_id = p.id and r.status = 'approved' and r.type = 'paid_leave'
   ), 0) as used_sum,
   coalesce(sum(g.days), 0) - coalesce((
-    select sum(
-      case 
-        when is_half_day then 0.5 
-        else (end_date - start_date + 1)
-      end
-    )
+    select sum(num_days)
     from public.leave_requests r
     where r.user_id = p.id and r.status = 'approved' and r.type = 'paid_leave'
   ), 0) as balance

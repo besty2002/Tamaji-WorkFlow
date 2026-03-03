@@ -29,6 +29,7 @@ export interface LeaveRequest {
   end_date: string;
   is_half_day: boolean;
   half_day_type: HalfDayType;
+  num_days: number; // Added: explicit number of business days
   reason: string | null;
   status: LeaveStatus;
   manager_comment: string | null;
@@ -37,6 +38,12 @@ export interface LeaveRequest {
   created_at: string;
   updated_at: string;
   profiles?: Profile; // For joined queries
+}
+
+export interface PublicHoliday {
+  id: string;
+  date: string;
+  name: string;
 }
 
 export interface LeaveBalanceView {
