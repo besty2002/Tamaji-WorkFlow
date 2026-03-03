@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
 import type { LeaveRequest, Profile } from '../../types/database';
-import { Card, CardContent, CardHeader } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState, EmptyState } from '../../components/ui/States';
 import { Button } from '../../components/ui/Button';
 import { Link } from 'react-router-dom';
