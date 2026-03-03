@@ -40,6 +40,7 @@ create table if not exists public.leave_requests (
   half_day_type text check (half_day_type in ('AM', 'PM')),
   num_days numeric(4,1) not null default 0, -- Explicit business days
   reason text,
+  attachment_url text, -- File attachment URL
   status text check (status in ('draft', 'submitted', 'approved', 'rejected', 'cancelled')) default 'draft',
   manager_comment text,
   decided_by uuid references public.profiles(id) on delete set null,

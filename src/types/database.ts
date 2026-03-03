@@ -8,6 +8,7 @@ export interface Profile {
   email: string;
   display_name: string | null;
   role: Role;
+  can_view_all_leaves: boolean;
   created_at: string;
 }
 
