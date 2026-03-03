@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle, Trash2 } from 'lucide-react';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
@@ -65,6 +65,23 @@ export function UserManagement() {
     }
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      alert('ユーザーを削除しました。関連する休暇申請も削除されました。');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => {
+      alert('ユーザーの削除に失敗しました: ' + err.message);
+    }
+  });
+
   const grantLeaveMutation = useMutation({
     mutationFn: async ({ userId, days, reason }: { userId: string, days: number, reason: string }) => {
       const { error } = await supabase
@@ -102,6 +119,16 @@ export function UserManagement() {
       days, 
       reason: grantReason 
     });
+  };
+
+  const handleDeleteUser = (userId: string, email: string) => {
+    if (userId === adminProfile?.id) {
+      alert('自分自身を削除することはできません。');
+      return;
+    }
+    if (window.confirm(`${email} さんを削除してもよろしいですか？\nこの操作は取り消しできず、関連するすべての休暇申請も削除されます。`)) {
+      deleteUserMutation.mutate(userId);
+    }
   };
 
   if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限がありません。" />;
@@ -200,14 +227,28 @@ export function UserManagement() {
                       <td className="px-8 py-5 whitespace-nowrap text-xs font-bold text-slate-400">
                         {new Date(u.created_at).toLocaleDateString('ja-JP')}
                       </td>
-                      <td className="px-8 py-5 text-right">
+                      <td className="px-8 py-5 text-right space-x-2">
                         <button 
                           onClick={() => setGrantModal({ isOpen: true, userId: u.id, userEmail: u.email })}
-                          className="text-xs font-black text-indigo-600 hover:text-white hover:bg-indigo-600 px-4 py-2.5 rounded-xl border border-indigo-100 hover:border-indigo-600 transition-all shadow-sm"
-                          disabled={grantLeaveMutation.isPending}
+                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                          title="休暇付与"
                         >
-                          休暇付与
+                          <Settings className="w-5 h-5" />
                         </button>
+                        {adminProfile?.role === 'admin' && u.id !== adminProfile.id && (
+                          <button 
+                            onClick={() => handleDeleteUser(u.id, u.email)}
+                            className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                            title="ユーザー削除"
+                            disabled={deleteUserMutation.isPending}
+                          >
+                            {deleteUserMutation.isPending && deleteUserMutation.variables === u.id ? (
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-5 h-5" />
+                            )}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -235,12 +276,23 @@ export function UserManagement() {
                         <div className="text-xs font-bold text-slate-400 mt-0.5">{u.display_name || '名前未設定'}</div>
                       </div>
                     </div>
-                    <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${
-                      u.role === 'admin' ? 'bg-red-50 text-red-600 border border-red-100' :
-                      u.role === 'manager' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                      'bg-slate-50 text-slate-500 border border-slate-100'
-                    }`}>
-                      {u.role === 'admin' ? '管理者' : u.role === 'manager' ? 'マネージャー' : '一般社員'}
+                    <div className="flex items-center space-x-2">
+                      <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${
+                        u.role === 'admin' ? 'bg-red-50 text-red-600 border border-red-100' :
+                        u.role === 'manager' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                        'bg-slate-50 text-slate-500 border border-slate-100'
+                      }`}>
+                        {u.role === 'admin' ? '管理者' : u.role === 'manager' ? 'マネージャー' : '一般社員'}
+                      </div>
+                      {adminProfile?.role === 'admin' && u.id !== adminProfile.id && (
+                        <button 
+                          onClick={() => handleDeleteUser(u.id, u.email)}
+                          className="p-1.5 text-red-400 hover:text-red-600 bg-red-50 rounded-lg transition-all"
+                          disabled={deleteUserMutation.isPending}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
