@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../auth/AuthContext';
-import { Card, CardContent, CardHeader } from '../../components/ui/Card';
+import { Card, CardContent } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
 import { 
   format, 
@@ -30,7 +29,6 @@ const typeColors: Record<string, string> = {
 };
 
 export function LeaveCalendar() {
-  const { profile } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   const monthStart = startOfMonth(currentDate);
@@ -95,7 +93,7 @@ export function LeaveCalendar() {
             ))}
           </div>
           <div className="grid grid-cols-7">
-            {days.map((day, dayIdx) => {
+            {days.map((day) => {
               const dayRequests = requests?.filter(req => {
                 const start = parseISO(req.start_date);
                 const end = parseISO(req.end_date);
