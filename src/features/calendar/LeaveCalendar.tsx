@@ -15,11 +15,12 @@ import {
   addMonths, 
   subMonths,
   isWithinInterval,
-  parseISO
+  parseISO,
+  getDay
 } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, User, Calendar as CalendarIcon, Info } from 'lucide-react';
-import type { LeaveRequest } from '../../types/database';
+import { ChevronLeft, ChevronRight, User, Calendar as CalendarIcon, Info, Flag } from 'lucide-react';
+import type { LeaveRequest, PublicHoliday } from '../../types/database';
 
 const typeColors: Record<string, string> = {
   paid_leave: 'bg-indigo-500',
@@ -56,7 +57,8 @@ export function LeaveCalendar() {
     end: calendarEnd,
   });
 
-  const { data: requests, isLoading, error } = useQuery({
+  // Fetch Approved Leave Requests
+  const { data: requests, isLoading: isRequestsLoading, error: requestsError } = useQuery({
     queryKey: ['approvedRequests', format(currentDate, 'yyyy-MM')],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -75,17 +77,31 @@ export function LeaveCalendar() {
     }
   });
 
+  // Fetch Public Holidays
+  const { data: holidays, isLoading: isHolidaysLoading } = useQuery({
+    queryKey: ['publicHolidays', format(currentDate, 'yyyy')],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('public_holidays')
+        .select('*');
+      if (error) throw error;
+      return data as PublicHoliday[];
+    }
+  });
+
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
 
-  if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorState message="カレンダーデータの取得中にエラーが発生しました。" />;
+  if (isRequestsLoading || isHolidaysLoading) return <LoadingSpinner />;
+  if (requestsError) return <ErrorState message="カレンダーデータの取得中にエラーが発生しました。" />;
 
   const selectedDateRequests = requests?.filter(req => {
     const start = parseISO(req.start_date);
     const end = parseISO(req.end_date);
     return isWithinInterval(selectedDate, { start, end });
   }) || [];
+
+  const selectedDayHoliday = holidays?.find(h => isSameDay(parseISO(h.date), selectedDate));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -96,7 +112,7 @@ export function LeaveCalendar() {
             休暇カレンダー
           </h1>
           <p className="text-slate-500 mt-1 font-medium ml-11">
-            チームの休暇スケジュール를 파악해 보세요.
+            チームの休暇スケジュールを把握しましょう。
           </p>
         </div>
         
@@ -119,7 +135,7 @@ export function LeaveCalendar() {
           <CardContent className="p-0 text-black">
             <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
               {['日', '月', '火', '水', '木', '金', '土'].map((day, idx) => (
-                <div key={day} className={`py-4 text-center text-[11px] font-black uppercase tracking-widest ${idx === 0 ? 'text-red-400' : idx === 6 ? 'text-indigo-400' : 'text-slate-400'}`}>
+                <div key={day} className={`py-4 text-center text-[11px] font-black uppercase tracking-widest ${idx === 0 ? 'text-red-500 bg-red-50/30' : idx === 6 ? 'text-blue-500 bg-blue-50/30' : 'text-slate-400'}`}>
                   {day}
                 </div>
               ))}
@@ -132,27 +148,40 @@ export function LeaveCalendar() {
                   return isWithinInterval(day, { start, end });
                 }) || [];
 
+                const holiday = holidays?.find(h => isSameDay(parseISO(h.date), day));
                 const isSelected = isSameDay(day, selectedDate);
                 const isToday = isSameDay(day, new Date());
                 const isCurrentMonth = isSameMonth(day, monthStart);
+                const dayOfWeek = getDay(day); // 0: Sunday, 6: Saturday
 
                 return (
                   <div
                     key={day.toString()}
                     onClick={() => setSelectedDate(day)}
-                    className={`min-h-[80px] md:min-h-[120px] p-1.5 md:p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
-                      !isCurrentMonth ? 'bg-slate-50/30' : 'bg-white hover:bg-indigo-50/30'
-                    } ${isSelected ? 'bg-indigo-50/50 ring-2 ring-indigo-500 ring-inset z-10 shadow-lg shadow-indigo-100' : ''}`}
+                    className={`min-h-[85px] md:min-h-[125px] p-1.5 md:p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
+                      !isCurrentMonth ? 'bg-slate-50/30 opacity-40' : 
+                      dayOfWeek === 0 || holiday ? 'bg-red-50/10' : 
+                      dayOfWeek === 6 ? 'bg-blue-50/10' : 'bg-white'
+                    } hover:bg-indigo-50/30 ${isSelected ? 'bg-indigo-50/50 ring-2 ring-indigo-500 ring-inset z-10 shadow-lg shadow-indigo-100' : ''}`}
                   >
-                    <div className={`text-sm font-bold mb-1.5 flex items-center justify-center w-7 h-7 rounded-full transition-colors ${
-                      isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 
-                      isSelected ? 'text-indigo-600' :
-                      !isCurrentMonth ? 'text-slate-300' : 'text-slate-700'
-                    }`}>
-                      {format(day, 'd')}
+                    <div className="flex justify-between items-start mb-1.5">
+                      <div className={`text-sm font-bold flex items-center justify-center w-7 h-7 rounded-full transition-colors ${
+                        isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 
+                        isSelected ? 'text-indigo-600' :
+                        holiday || dayOfWeek === 0 ? 'text-red-500' :
+                        dayOfWeek === 6 ? 'text-blue-500' :
+                        !isCurrentMonth ? 'text-slate-300' : 'text-slate-700'
+                      }`}>
+                        {format(day, 'd')}
+                      </div>
+                      {holiday && (
+                        <div className="text-[8px] md:text-[9px] font-bold text-red-400 truncate max-w-[70%] text-right leading-tight">
+                          {holiday.name}
+                        </div>
+                      )}
                     </div>
                     
-                    {/* Names display (Both Mobile and Desktop) */}
+                    {/* Names display */}
                     <div className="space-y-1 overflow-hidden">
                       {dayRequests.slice(0, 2).map((req) => (
                         <div
@@ -180,7 +209,15 @@ export function LeaveCalendar() {
           <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white overflow-hidden">
             <CardHeader className="bg-slate-900 text-white py-6 px-8 border-none">
               <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 text-white">選択された日付</div>
-              <div className="text-2xl font-black text-white">{format(selectedDate, 'yyyy年 MM月 dd日', { locale: ja })}</div>
+              <div className="text-2xl font-black text-white flex items-center">
+                {format(selectedDate, 'yyyy年 MM月 dd日', { locale: ja })}
+                {selectedDayHoliday && (
+                  <span className="ml-3 text-xs bg-red-500/20 text-red-300 px-2 py-1 rounded-lg border border-red-500/30 flex items-center">
+                    <Flag className="w-3 h-3 mr-1" />
+                    {selectedDayHoliday.name}
+                  </span>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="p-8">
               <div className="space-y-4">
