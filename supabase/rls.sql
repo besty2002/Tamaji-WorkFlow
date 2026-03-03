@@ -46,6 +46,10 @@ with check (
   or public.is_admin_or_manager()
 );
 
+create policy "Admins can delete profiles"
+on public.profiles for delete
+using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+
 -- Public Holidays Policies
 create policy "Everyone can view holidays"
 on public.public_holidays for select
@@ -96,3 +100,7 @@ create policy "Managers and Admins can update requests"
 on public.leave_requests for update
 using (public.is_admin_or_manager())
 with check (public.is_admin_or_manager());
+
+create policy "Managers and Admins can delete requests"
+on public.leave_requests for delete
+using (public.is_admin_or_manager());
