@@ -4,7 +4,7 @@ import { App } from './app/App'
 import './index.css'
 
 // Global error listener to help debug on mobile or when console is not available
-window.onerror = function(message, source, lineno, colno, error) {
+window.onerror = function(message, source, lineno, colno) {
   const errorMsg = document.createElement('div');
   errorMsg.style.position = 'fixed';
   errorMsg.style.top = '0';
