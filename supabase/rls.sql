@@ -4,7 +4,7 @@ alter table public.leave_grants enable row level security;
 alter table public.leave_requests enable row level security;
 alter table public.public_holidays enable row level security;
 
--- Helper function to avoid recursion
+-- Helper functions to avoid recursion
 create or replace function public.check_view_permission()
 returns boolean as $$
 begin
@@ -12,6 +12,17 @@ begin
     select 1 from public.profiles
     where id = auth.uid() 
     and (role in ('manager', 'admin') or can_view_all_leaves = true)
+  );
+end;
+$$ language plpgsql security definer;
+
+create or replace function public.is_admin_or_manager()
+returns boolean as $$
+begin
+  return exists (
+    select 1 from public.profiles
+    where id = auth.uid() 
+    and role in ('manager', 'admin')
   );
 end;
 $$ language plpgsql security definer;
@@ -24,14 +35,16 @@ using (
   or public.check_view_permission()
 );
 
-create policy "Users can update their own profile"
+create policy "Update profiles based on role"
 on public.profiles for update
-using (auth.uid() = id)
-with check (auth.uid() = id);
-
-create policy "Admins can update all profiles"
-on public.profiles for update
-using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+using (
+  auth.uid() = id 
+  or public.is_admin_or_manager()
+)
+with check (
+  auth.uid() = id 
+  or public.is_admin_or_manager()
+);
 
 -- Public Holidays Policies
 create policy "Everyone can view holidays"
@@ -61,7 +74,7 @@ on public.leave_requests for select
 using (
   auth.uid() = user_id
   or (status = 'approved' and public.check_view_permission())
-  or (exists (select 1 from public.profiles where id = auth.uid() and role in ('manager', 'admin')))
+  or public.is_admin_or_manager()
 );
 
 create policy "Users can insert their own requests"
@@ -81,5 +94,5 @@ with check (
 
 create policy "Managers and Admins can update requests"
 on public.leave_requests for update
-using (exists (select 1 from public.profiles where id = auth.uid() and role in ('manager', 'admin')))
-with check (exists (select 1 from public.profiles where id = auth.uid() and role in ('manager', 'admin')));
+using (public.is_admin_or_manager())
+with check (public.is_admin_or_manager());
