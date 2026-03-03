@@ -4,8 +4,7 @@ import {
   eachDayOfInterval, 
   isWeekend, 
   format, 
-  parseISO, 
-  isSameDay 
+  parseISO
 } from "date-fns";
 
 export function cn(...inputs: ClassValue[]) {
