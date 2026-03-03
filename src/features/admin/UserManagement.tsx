@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { Profile } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
-import { UserCheck, Shield, Eye, EyeOff, Loader2, Mail, User, Calendar as CalendarIcon, Settings } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings } from 'lucide-react';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
