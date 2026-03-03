@@ -107,7 +107,7 @@ export function LeaveCalendar() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center text-black">
             <CalendarIcon className="w-8 h-8 mr-3 text-indigo-600" />
             休暇カレンダー
           </h1>
@@ -158,13 +158,13 @@ export function LeaveCalendar() {
                   <div
                     key={day.toString()}
                     onClick={() => setSelectedDate(day)}
-                    className={`min-h-[85px] md:min-h-[125px] p-1.5 md:p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
+                    className={`min-h-[90px] md:min-h-[130px] p-1.5 md:p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
                       !isCurrentMonth ? 'bg-slate-50/30 opacity-40' : 
-                      dayOfWeek === 0 || holiday ? 'bg-red-50/10' : 
+                      holiday || dayOfWeek === 0 ? 'bg-red-50/10' : 
                       dayOfWeek === 6 ? 'bg-blue-50/10' : 'bg-white'
                     } hover:bg-indigo-50/30 ${isSelected ? 'bg-indigo-50/50 ring-2 ring-indigo-500 ring-inset z-10 shadow-lg shadow-indigo-100' : ''}`}
                   >
-                    <div className="flex justify-between items-start mb-1.5">
+                    <div className="flex flex-col items-center md:items-start mb-1.5">
                       <div className={`text-sm font-bold flex items-center justify-center w-7 h-7 rounded-full transition-colors ${
                         isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 
                         isSelected ? 'text-indigo-600' :
@@ -175,7 +175,7 @@ export function LeaveCalendar() {
                         {format(day, 'd')}
                       </div>
                       {holiday && (
-                        <div className="text-[8px] md:text-[9px] font-bold text-red-400 truncate max-w-[70%] text-right leading-tight">
+                        <div className="text-[8px] md:text-[9px] font-bold text-red-400 mt-0.5 leading-tight text-center md:text-left w-full truncate px-0.5" title={holiday.name}>
                           {holiday.name}
                         </div>
                       )}
