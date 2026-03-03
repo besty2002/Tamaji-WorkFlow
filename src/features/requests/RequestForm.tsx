@@ -79,7 +79,7 @@ export function RequestForm() {
 
     try {
       if (data.start_date > data.end_date) {
-        throw new Error('Start date cannot be after end date.');
+        throw new Error('開始日は終了日より前である必要があります。');
       }
 
       const payload = {
@@ -108,7 +108,7 @@ export function RequestForm() {
       
       navigate('/requests');
     } catch (err: any) {
-      setErrorMsg(err.message || 'An error occurred while saving.');
+      setErrorMsg(err.message || '保存中にエラーが発生しました。');
     } finally {
       setLoading(false);
     }
@@ -120,35 +120,35 @@ export function RequestForm() {
     <div className="max-w-2xl mx-auto">
       <Card>
         <CardHeader>
-          {isEdit ? (isReadonly ? 'View Leave Request' : 'Edit Leave Request') : 'New Leave Request'}
+          {isEdit ? (isReadonly ? '休暇申請の詳細' : '休暇申請の編集') : '新規休暇申請'}
         </CardHeader>
         <CardContent>
           {errorMsg && <div className="mb-4 p-3 bg-red-100 text-red-700 rounded text-sm">{errorMsg}</div>}
           
           <form className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-700">Leave Type</label>
+              <label className="text-sm font-medium text-gray-700">休暇の種類</label>
               <select 
                 {...register('type')} 
                 disabled={isReadonly}
                 className="mt-1 block w-full rounded-md border-gray-300 border py-2 px-3 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100"
               >
-                <option value="paid_leave">Annual Leave (Paid)</option>
-                <option value="sick">Sick Leave</option>
-                <option value="special">Special Leave</option>
-                <option value="unpaid">Unpaid Leave</option>
+                <option value="paid_leave">年次有給休暇</option>
+                <option value="sick">病気休暇</option>
+                <option value="special">特別休暇</option>
+                <option value="unpaid">無給休暇</option>
               </select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Start Date"
+                label="開始日"
                 type="date"
                 disabled={isReadonly}
                 {...register('start_date', { required: true })}
               />
               <Input
-                label="End Date"
+                label="終了日"
                 type="date"
                 disabled={isHalfDay || isReadonly}
                 {...register('end_date', { required: true })}
@@ -164,39 +164,39 @@ export function RequestForm() {
                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:bg-gray-100"
               />
               <label htmlFor="is_half_day" className="text-sm text-gray-700">
-                Half Day
+                半休
               </label>
             </div>
 
             {isHalfDay && (
               <div>
-                <label className="text-sm font-medium text-gray-700">Half Day Time</label>
+                <label className="text-sm font-medium text-gray-700">半休の時間帯</label>
                 <select 
                   {...register('half_day_type', { required: isHalfDay })} 
                   disabled={isReadonly}
                   className="mt-1 block w-full rounded-md border-gray-300 border py-2 px-3 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100"
                 >
-                  <option value="">Select AM/PM...</option>
-                  <option value="AM">Morning (AM)</option>
-                  <option value="PM">Afternoon (PM)</option>
+                  <option value="">午前/午後を選択...</option>
+                  <option value="AM">午前 (AM)</option>
+                  <option value="PM">午後 (PM)</option>
                 </select>
               </div>
             )}
 
             <div>
-              <label className="text-sm font-medium text-gray-700">Reason</label>
+              <label className="text-sm font-medium text-gray-700">理由</label>
               <textarea
                 {...register('reason')}
                 disabled={isReadonly}
                 rows={3}
                 className="mt-1 block w-full rounded-md border-gray-300 border py-2 px-3 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:bg-gray-100"
-                placeholder="Brief reason for leave..."
+                placeholder="休暇の理由を簡潔に入力してください..."
               />
             </div>
 
             {isReadonly && request?.manager_comment && (
               <div className="p-3 bg-gray-50 border border-gray-200 rounded">
-                <span className="text-xs font-semibold text-gray-500 uppercase">Manager Comment</span>
+                <span className="text-xs font-semibold text-gray-500 uppercase">管理者コメント</span>
                 <p className="text-sm text-gray-800 mt-1">{request.manager_comment}</p>
               </div>
             )}
@@ -209,7 +209,7 @@ export function RequestForm() {
                   onClick={() => navigate('/requests')}
                   disabled={loading}
                 >
-                  Cancel
+                  キャンセル
                 </Button>
                 <div className="flex-1"></div>
                 <Button 
@@ -218,7 +218,7 @@ export function RequestForm() {
                   onClick={handleSubmit((data) => onSubmit(data, 'draft'))}
                   disabled={loading}
                 >
-                  Save Draft
+                  下書き保存
                 </Button>
                 <Button 
                   type="button" 
@@ -226,13 +226,13 @@ export function RequestForm() {
                   onClick={handleSubmit((data) => onSubmit(data, 'submitted'))}
                   disabled={loading}
                 >
-                  Submit Request
+                  申請する
                 </Button>
               </div>
             )}
             {isReadonly && (
               <div className="pt-4 border-t">
-                <Button type="button" variant="outline" onClick={() => navigate('/requests')}>Back to List</Button>
+                <Button type="button" variant="outline" onClick={() => navigate('/requests')}>一覧に戻る</Button>
               </div>
             )}
           </form>

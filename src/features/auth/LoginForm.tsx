@@ -25,7 +25,7 @@ export function LoginForm() {
           password,
         });
         if (error) throw error;
-        setError('Signup successful. Please check your email to verify (or try logging in if auto-confirm is enabled).');
+        setError('アカウントを作成しました。メールを確認して認証を完了してください（自動認証が有効な場合はそのままログインできます）。');
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
@@ -35,7 +35,7 @@ export function LoginForm() {
         navigate('/');
       }
     } catch (err: any) {
-      setError(err.message || 'An error occurred during authentication.');
+      setError(err.message || '認証中にエラーが発生しました。');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export function LoginForm() {
   return (
     <div className="flex items-center justify-center min-h-[80vh]">
       <Card className="w-full max-w-md">
-        <CardHeader>{isSignUp ? 'Create an Account' : 'Sign In to Tamaji'}</CardHeader>
+        <CardHeader>{isSignUp ? 'アカウント作成' : 'Tamajiにログイン'}</CardHeader>
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             {error && (
@@ -53,21 +53,21 @@ export function LoginForm() {
               </div>
             )}
             <Input
-              label="Email"
+              label="メールアドレス"
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
             <Input
-              label="Password"
+              label="パスワード"
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
             <Button className="w-full" type="submit" disabled={loading}>
-              {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+              {loading ? '処理中...' : (isSignUp ? '新規登録' : 'ログイン')}
             </Button>
             
             <div className="text-center text-sm mt-4">
@@ -76,7 +76,7 @@ export function LoginForm() {
                 className="text-indigo-600 hover:underline"
                 onClick={() => setIsSignUp(!isSignUp)}
               >
-                {isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up'}
+                {isSignUp ? 'すでにアカウントをお持ちですか？ ログイン' : 'アカウントをお持ちでないですか？ 新規登録'}
               </button>
             </div>
           </form>

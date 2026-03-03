@@ -35,27 +35,27 @@ export function UserManagement() {
     },
   });
 
-  if (profile?.role !== 'admin') return <ErrorState message="Unauthorized access. Admin only." />;
+  if (profile?.role !== 'admin') return <ErrorState message="アクセス権限がありません。管理者のみアクセス可能です。" />;
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorState />;
+  if (error) return <ErrorState message="ユーザーデータの取得中にエラーが発生しました。" />;
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900">ユーザー管理</h1>
       </div>
 
       <Card>
-        <CardHeader>Registered Users</CardHeader>
+        <CardHeader>登録ユーザー一覧</CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">メールアドレス</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">氏名</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">権限</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">登録日</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -70,13 +70,13 @@ export function UserManagement() {
                         disabled={roleMutation.isPending || u.id === profile.id}
                         className="mt-1 block w-full pl-3 pr-10 py-1 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md disabled:bg-gray-100"
                       >
-                        <option value="employee">Employee</option>
-                        <option value="manager">Manager</option>
-                        <option value="admin">Admin</option>
+                        <option value="employee">社員</option>
+                        <option value="manager">マネージャー</option>
+                        <option value="admin">管理者</option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(u.created_at).toLocaleDateString()}
+                      {new Date(u.created_at).toLocaleDateString('ja-JP')}
                     </td>
                   </tr>
                 ))}

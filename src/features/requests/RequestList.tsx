@@ -8,6 +8,22 @@ import { LoadingSpinner, ErrorState, EmptyState } from '../../components/ui/Stat
 import { Button } from '../../components/ui/Button';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { ja } from 'date-fns/locale';
+
+const typeLabels: Record<string, string> = {
+  paid_leave: '年次有給休暇',
+  sick: '病気休暇',
+  special: '特別休暇',
+  unpaid: '無給休暇'
+};
+
+const statusLabels: Record<string, string> = {
+  draft: '下書き',
+  submitted: '申請中',
+  approved: '承認済み',
+  rejected: '却下',
+  cancelled: 'キャンセル'
+};
 
 export function RequestList() {
   const { user } = useAuth();
@@ -43,33 +59,33 @@ export function RequestList() {
   });
 
   if (isLoading) return <LoadingSpinner />;
-  if (error) return <ErrorState />;
+  if (error) return <ErrorState message="申請データの取得中にエラーが発生しました。" />;
 
   const filteredRequests = requests?.filter(req => filterStatus === 'all' || req.status === filterStatus) || [];
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">My Leave Requests</h1>
+        <h1 className="text-2xl font-bold text-gray-900">自分の申請一覧</h1>
         <Link to="/requests/new">
-          <Button>New Request</Button>
+          <Button>新規申請</Button>
         </Link>
       </div>
 
       <Card>
         <CardHeader className="flex justify-between items-center py-3">
-          <span>Requests</span>
+          <span>申請履歴</span>
           <select 
             value={filterStatus} 
             onChange={(e) => setFilterStatus(e.target.value)}
             className="ml-4 text-sm border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
           >
-            <option value="all">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="submitted">Submitted</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="all">すべてのステータス</option>
+            <option value="draft">下書き</option>
+            <option value="submitted">申請中</option>
+            <option value="approved">承認済み</option>
+            <option value="rejected">却下</option>
+            <option value="cancelled">キャンセル</option>
           </select>
         </CardHeader>
         <CardContent className="p-0">
@@ -78,22 +94,22 @@ export function RequestList() {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日付</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">種類</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ステータス</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredRequests.map((req) => (
                     <tr key={req.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {format(new Date(req.start_date), 'MMM d, yyyy')}
-                        {req.start_date !== req.end_date && ` - ${format(new Date(req.end_date), 'MMM d, yyyy')}`}
-                        {req.is_half_day && ` (Half ${req.half_day_type})`}
+                        {format(new Date(req.start_date), 'yyyy年MM月dd일', { locale: ja })}
+                        {req.start_date !== req.end_date && ` - ${format(new Date(req.end_date), 'yyyy年MM月dd일', { locale: ja })}`}
+                        {req.is_half_day && ` (${req.half_day_type === 'AM' ? '午前' : '午後'})`}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                        {req.type.replace('_', ' ')}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {typeLabels[req.type]}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -101,22 +117,22 @@ export function RequestList() {
                             req.status === 'rejected' ? 'bg-red-100 text-red-800' : 
                             req.status === 'submitted' ? 'bg-blue-100 text-blue-800' : 
                             'bg-gray-100 text-gray-800'}`}>
-                          {req.status}
+                          {statusLabels[req.status]}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <Link to={`/requests/${req.id}`} className="text-indigo-600 hover:text-indigo-900">View</Link>
+                        <Link to={`/requests/${req.id}`} className="text-indigo-600 hover:text-indigo-900">詳細</Link>
                         {(req.status === 'draft' || req.status === 'submitted') && (
                           <button 
                             onClick={() => {
-                              if (confirm('Are you sure you want to cancel this request?')) {
+                              if (confirm('この申請をキャンセルしてもよろしいですか？')) {
                                 cancelMutation.mutate(req.id);
                               }
                             }}
                             className="text-red-600 hover:text-red-900"
                             disabled={cancelMutation.isPending}
                           >
-                            Cancel
+                            キャンセル
                           </button>
                         )}
                       </td>
@@ -126,7 +142,7 @@ export function RequestList() {
               </table>
             </div>
           ) : (
-            <EmptyState message="No leave requests found." />
+            <EmptyState message="申請が見つかりませんでした。" />
           )}
         </CardContent>
       </Card>

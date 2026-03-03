@@ -2,7 +2,7 @@ interface ErrorProps {
   message?: string;
 }
 
-export function ErrorState({ message = 'An error occurred.' }: ErrorProps) {
+export function ErrorState({ message = 'エラーが発生しました。' }: ErrorProps) {
   return (
     <div className="flex justify-center items-center h-full p-4 text-red-500">
       <span>{message}</span>
@@ -18,7 +18,7 @@ export function LoadingSpinner() {
   );
 }
 
-export function EmptyState({ message = 'No data available.' }: { message?: string }) {
+export function EmptyState({ message = 'データがありません。' }: { message?: string }) {
   return (
     <div className="flex justify-center items-center p-8 text-gray-500 bg-gray-50 rounded border border-dashed border-gray-300">
       {message}

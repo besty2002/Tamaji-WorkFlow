@@ -4,17 +4,22 @@ alter table public.leave_grants enable row level security;
 alter table public.leave_requests enable row level security;
 
 -- Profiles Policies
+-- Fix: Using a subquery that checks the current user's record directly without causing recursion
 create policy "Users can view their own profile"
 on public.profiles for select
 using (auth.uid() = id);
 
 create policy "Admins can view all profiles"
 on public.profiles for select
-using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
 
 create policy "Admins can update all profiles"
 on public.profiles for update
-using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
 
 -- Leave Grants Policies
 create policy "Users can view their own grants"
@@ -23,7 +28,9 @@ using (auth.uid() = user_id);
 
 create policy "Admins can view all grants"
 on public.leave_grants for select
-using (exists (select 1 from public.profiles where id = auth.uid() and role = 'admin'));
+using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
 
 create policy "Admins can insert grants"
 on public.leave_grants for insert
