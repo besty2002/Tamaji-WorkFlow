@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
-import { Card, CardContent } from '../../components/ui/Card';
+import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
 import { 
   format, 
@@ -18,18 +18,33 @@ import {
   parseISO
 } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar as CalendarIcon, Info } from 'lucide-react';
 import type { LeaveRequest } from '../../types/database';
 
 const typeColors: Record<string, string> = {
-  paid_leave: 'bg-blue-100 text-blue-800 border-blue-200',
-  sick: 'bg-red-100 text-red-800 border-red-200',
-  special: 'bg-purple-100 text-purple-800 border-purple-200',
-  unpaid: 'bg-gray-100 text-gray-800 border-gray-200'
+  paid_leave: 'bg-indigo-500',
+  sick: 'bg-red-500',
+  special: 'bg-purple-500',
+  unpaid: 'bg-slate-400'
+};
+
+const typeLightColors: Record<string, string> = {
+  paid_leave: 'bg-indigo-50 text-indigo-700 border-indigo-100',
+  sick: 'bg-red-50 text-red-700 border-red-100',
+  special: 'bg-purple-50 text-purple-700 border-purple-100',
+  unpaid: 'bg-slate-50 text-slate-700 border-slate-200'
+};
+
+const typeLabels: Record<string, string> = {
+  paid_leave: '年次有給休暇',
+  sick: '病気休暇',
+  special: '特別休暇',
+  unpaid: '無給休暇'
 };
 
 export function LeaveCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
@@ -66,87 +81,167 @@ export function LeaveCalendar() {
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorState message="カレンダーデータの取得中にエラーが発生しました。" />;
 
+  const selectedDateRequests = requests?.filter(req => {
+    const start = parseISO(req.start_date);
+    const end = parseISO(req.end_date);
+    return isWithinInterval(selectedDate, { start, end });
+  }) || [];
+
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">休暇カレンダー</h1>
-        <div className="flex items-center space-x-4 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
-          <button onClick={prevMonth} className="p-2 hover:bg-gray-100 rounded-md transition-colors">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center">
+            <CalendarIcon className="w-8 h-8 mr-3 text-indigo-600" />
+            休暇カレンダー
+          </h1>
+          <p className="text-slate-500 mt-1 font-medium ml-11">
+            チームの休暇スケジュールを把握しましょう。
+          </p>
+        </div>
+        
+        <div className="flex items-center space-x-2 bg-white rounded-2xl border border-slate-200 p-1.5 shadow-sm self-start md:self-center text-black">
+          <button onClick={prevMonth} className="p-2.5 hover:bg-slate-50 rounded-xl transition-all text-slate-400 hover:text-indigo-600">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-lg font-semibold min-w-[120px] text-center">
+          <span className="text-base font-bold min-w-[140px] text-center text-slate-700">
             {format(currentDate, 'yyyy年 MM月', { locale: ja })}
           </span>
-          <button onClick={nextMonth} className="p-2 hover:bg-gray-100 rounded-md transition-colors">
+          <button onClick={nextMonth} className="p-2.5 hover:bg-slate-50 rounded-xl transition-all text-slate-400 hover:text-indigo-600">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50">
-            {['日', '月', '火', '水', '木', '金', '土'].map((day) => (
-              <div key={day} className="py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                {day}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {days.map((day) => {
-              const dayRequests = requests?.filter(req => {
-                const start = parseISO(req.start_date);
-                const end = parseISO(req.end_date);
-                return isWithinInterval(day, { start, end });
-              }) || [];
-
-              return (
-                <div
-                  key={day.toString()}
-                  className={`min-h-[120px] p-2 border-r border-b border-gray-100 transition-colors ${
-                    !isSameMonth(day, monthStart) ? 'bg-gray-50/50' : 'bg-white'
-                  } ${isSameDay(day, new Date()) ? 'ring-2 ring-indigo-500 ring-inset z-10' : ''}`}
-                >
-                  <div className={`text-sm font-medium mb-1 ${
-                    !isSameMonth(day, monthStart) ? 'text-gray-400' : 
-                    isSameDay(day, new Date()) ? 'text-indigo-600' : 'text-gray-900'
-                  }`}>
-                    {format(day, 'd')}
-                  </div>
-                  <div className="space-y-1">
-                    {dayRequests.map((req) => (
-                      <div
-                        key={req.id}
-                        className={`text-[10px] px-1.5 py-0.5 rounded border truncate ${typeColors[req.type] || typeColors.paid_leave}`}
-                        title={`${req.profiles?.display_name || req.profiles?.email}: ${req.reason || ''}`}
-                      >
-                        {req.is_half_day ? `[${req.half_day_type}] ` : ''}
-                        {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
-                      </div>
-                    ))}
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Calendar Grid */}
+        <Card className="lg:col-span-2 border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden">
+          <CardContent className="p-0 text-black">
+            <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
+              {['日', '月', '火', '水', '木', '金', '土'].map((day, idx) => (
+                <div key={day} className={`py-4 text-center text-[11px] font-black uppercase tracking-widest ${idx === 0 ? 'text-red-400' : idx === 6 ? 'text-indigo-400' : 'text-slate-400'}`}>
+                  {day}
                 </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex flex-wrap gap-4 text-xs">
-        {Object.entries(typeColors).map(([type, colorClass]) => {
-          const labels: Record<string, string> = {
-            paid_leave: '年次有給休暇',
-            sick: '病気休暇',
-            special: '特別休暇',
-            unpaid: '無給休暇'
-          };
-          return (
-            <div key={type} className="flex items-center space-x-2">
-              <span className={`w-3 h-3 rounded-sm border ${colorClass.split(' ')[0]} ${colorClass.split(' ')[2]}`}></span>
-              <span className="text-gray-600">{labels[type]}</span>
+              ))}
             </div>
-          );
-        })}
+            <div className="grid grid-cols-7">
+              {days.map((day) => {
+                const dayRequests = requests?.filter(req => {
+                  const start = parseISO(req.start_date);
+                  const end = parseISO(req.end_date);
+                  return isWithinInterval(day, { start, end });
+                }) || [];
+
+                const isSelected = isSameDay(day, selectedDate);
+                const isToday = isSameDay(day, new Date());
+                const isCurrentMonth = isSameMonth(day, monthStart);
+
+                return (
+                  <div
+                    key={day.toString()}
+                    onClick={() => setSelectedDate(day)}
+                    className={`min-h-[80px] md:min-h-[120px] p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
+                      !isCurrentMonth ? 'bg-slate-50/30' : 'bg-white hover:bg-indigo-50/30'
+                    } ${isSelected ? 'bg-indigo-50/50 ring-2 ring-indigo-500 ring-inset z-10 shadow-lg shadow-indigo-100' : ''}`}
+                  >
+                    <div className={`text-sm font-bold mb-1.5 flex items-center justify-center w-7 h-7 rounded-full transition-colors ${
+                      isToday ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 
+                      isSelected ? 'text-indigo-600' :
+                      !isCurrentMonth ? 'text-slate-300' : 'text-slate-700'
+                    }`}>
+                      {format(day, 'd')}
+                    </div>
+                    
+                    {/* Desktop: Show Names (truncated) */}
+                    <div className="hidden md:block space-y-1 overflow-hidden">
+                      {dayRequests.slice(0, 3).map((req) => (
+                        <div
+                          key={req.id}
+                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold truncate ${typeLightColors[req.type] || typeLightColors.paid_leave}`}
+                        >
+                          {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
+                        </div>
+                      ))}
+                      {dayRequests.length > 3 && (
+                        <div className="text-[9px] font-black text-slate-400 text-center mt-1">
+                          他 {dayRequests.length - 3} 名
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Mobile: Show Dots */}
+                    <div className="flex flex-wrap gap-1 justify-center md:hidden mt-1">
+                      {dayRequests.slice(0, 4).map((req) => (
+                        <div
+                          key={req.id}
+                          className={`w-1.5 h-1.5 rounded-full ${typeColors[req.type] || typeColors.paid_leave}`}
+                        />
+                      ))}
+                      {dayRequests.length > 4 && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Selected Day Details */}
+        <div className="space-y-6">
+          <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white overflow-hidden text-black">
+            <CardHeader className="bg-slate-900 text-white py-6 px-8 border-none">
+              <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 text-white">選択された日付</div>
+              <div className="text-2xl font-black text-white">{format(selectedDate, 'yyyy年 MM月 dd日', { locale: ja })}</div>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="space-y-4">
+                {selectedDateRequests.length > 0 ? (
+                  selectedDateRequests.map((req) => (
+                    <div key={req.id} className="flex items-start space-x-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-white transition-all group">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${typeColors[req.type] || typeColors.paid_leave}`}>
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-slate-900 truncate">
+                          {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
+                        </div>
+                        <div className="text-xs font-bold text-indigo-600 uppercase mt-0.5">
+                          {typeLabels[req.type]} {req.is_half_day && `(${req.half_day_type === 'AM' ? '午前' : '午後'}半休)`}
+                        </div>
+                        {req.reason && (
+                          <p className="text-xs text-slate-500 mt-2 line-clamp-2 italic font-medium">
+                            " {req.reason} "
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-12 text-center flex flex-col items-center">
+                    <div className="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center mb-4 border border-slate-100">
+                      <Info className="w-8 h-8 text-slate-300" />
+                    </div>
+                    <p className="text-slate-400 font-bold text-sm">休暇中のメンバーはいません。</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Legend */}
+          <Card className="border-none shadow-lg shadow-slate-200/40 rounded-[2rem] bg-white p-6 text-black">
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(typeLabels).map(([type, label]) => (
+                <div key={type} className="flex items-center space-x-2.5 p-2 rounded-xl border border-slate-50 bg-slate-50/30">
+                  <span className={`w-2.5 h-2.5 rounded-full shadow-sm ${typeColors[type]}`}></span>
+                  <span className="text-[11px] font-black text-slate-600">{label}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
