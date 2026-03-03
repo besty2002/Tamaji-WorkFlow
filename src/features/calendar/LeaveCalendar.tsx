@@ -96,7 +96,7 @@ export function LeaveCalendar() {
             休暇カレンダー
           </h1>
           <p className="text-slate-500 mt-1 font-medium ml-11">
-            チームの休暇スケジュールを把握しましょう。
+            チームの休暇スケジュール를 파악해 보세요.
           </p>
         </div>
         
@@ -140,7 +140,7 @@ export function LeaveCalendar() {
                   <div
                     key={day.toString()}
                     onClick={() => setSelectedDate(day)}
-                    className={`min-h-[80px] md:min-h-[120px] p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
+                    className={`min-h-[80px] md:min-h-[120px] p-1.5 md:p-2 border-r border-b border-slate-50 transition-all cursor-pointer relative group ${
                       !isCurrentMonth ? 'bg-slate-50/30' : 'bg-white hover:bg-indigo-50/30'
                     } ${isSelected ? 'bg-indigo-50/50 ring-2 ring-indigo-500 ring-inset z-10 shadow-lg shadow-indigo-100' : ''}`}
                   >
@@ -152,33 +152,20 @@ export function LeaveCalendar() {
                       {format(day, 'd')}
                     </div>
                     
-                    {/* Desktop: Show Names (truncated) */}
-                    <div className="hidden md:block space-y-1 overflow-hidden">
-                      {dayRequests.slice(0, 3).map((req) => (
+                    {/* Names display (Both Mobile and Desktop) */}
+                    <div className="space-y-1 overflow-hidden">
+                      {dayRequests.slice(0, 2).map((req) => (
                         <div
                           key={req.id}
-                          className={`text-[10px] px-2 py-0.5 rounded-lg border font-bold truncate ${typeLightColors[req.type] || typeLightColors.paid_leave}`}
+                          className={`text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-lg border font-bold truncate ${typeLightColors[req.type] || typeLightColors.paid_leave}`}
                         >
                           {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
                         </div>
                       ))}
-                      {dayRequests.length > 3 && (
-                        <div className="text-[9px] font-black text-slate-400 text-center mt-1">
-                          他 {dayRequests.length - 3} 名
+                      {dayRequests.length > 2 && (
+                        <div className="text-[8px] md:text-[9px] font-black text-slate-400 text-center mt-0.5">
+                          + {dayRequests.length - 2} 名
                         </div>
-                      )}
-                    </div>
-
-                    {/* Mobile: Show Dots */}
-                    <div className="flex flex-wrap gap-1 justify-center md:hidden mt-1">
-                      {dayRequests.slice(0, 4).map((req) => (
-                        <div
-                          key={req.id}
-                          className={`w-1.5 h-1.5 rounded-full ${typeColors[req.type] || typeColors.paid_leave}`}
-                        />
-                      ))}
-                      {dayRequests.length > 4 && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                       )}
                     </div>
                   </div>
@@ -189,8 +176,8 @@ export function LeaveCalendar() {
         </Card>
 
         {/* Selected Day Details */}
-        <div className="space-y-6">
-          <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white overflow-hidden text-black">
+        <div className="space-y-6 text-black">
+          <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white overflow-hidden">
             <CardHeader className="bg-slate-900 text-white py-6 px-8 border-none">
               <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 text-white">選択された日付</div>
               <div className="text-2xl font-black text-white">{format(selectedDate, 'yyyy年 MM月 dd日', { locale: ja })}</div>
@@ -231,7 +218,7 @@ export function LeaveCalendar() {
           </Card>
 
           {/* Legend */}
-          <Card className="border-none shadow-lg shadow-slate-200/40 rounded-[2rem] bg-white p-6 text-black">
+          <Card className="border-none shadow-lg shadow-slate-200/40 rounded-[2rem] bg-white p-6">
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(typeLabels).map(([type, label]) => (
                 <div key={type} className="flex items-center space-x-2.5 p-2 rounded-xl border border-slate-50 bg-slate-50/30">
