@@ -41,7 +41,10 @@ export function Dashboard() {
   });
 
   if (balanceLoading || requestsLoading) return <LoadingSpinner />;
-  if (balanceError || requestsError) return <ErrorState />;
+  if (balanceError || requestsError) {
+    const errorMsg = (balanceError as any)?.message || (requestsError as any)?.message || 'An error occurred while loading dashboard data.';
+    return <ErrorState message={errorMsg} />;
+  }
 
   return (
     <div className="space-y-6">
