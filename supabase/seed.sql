@@ -1,0 +1,12 @@
+-- How to use this seed:
+-- 1. Create your user via Supabase Auth UI or API.
+-- 2. The trigger in schema.sql will automatically create a profile for them.
+-- 3. To set a user as an admin or manager, update their profile manually:
+--    UPDATE public.profiles SET role = 'admin' WHERE email = 'your-admin@example.com';
+-- 4. Then you can insert dummy grants for testing:
+--    INSERT INTO public.leave_grants (user_id, days, reason) 
+--    VALUES ('<user_uuid>', 15.0, 'Annual Leave 2026');
+
+-- Example of creating a sample grant (replace user_id with an actual UUID):
+-- INSERT INTO public.leave_grants (user_id, days, reason, granted_at)
+-- VALUES ('00000000-0000-0000-0000-000000000000', 15.0, 'Initial 2026 grant', current_date);

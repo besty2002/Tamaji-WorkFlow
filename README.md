@@ -1,73 +1,73 @@
-# React + TypeScript + Vite
+# Tamaji Leave Management System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React + TypeScript application for managing employee leave requests, built with Vite, Tailwind CSS, and Supabase.
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js 20+
+- Supabase account and project
 
-## React Compiler
+## Local Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Expanding the ESLint configuration
+2. Setup Environment Variables:
+   Copy `.env.example` to `.env.local` and add your Supabase credentials.
+   ```bash
+   VITE_SUPABASE_URL=your_project_url
+   VITE_SUPABASE_ANON_KEY=your_anon_key
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+3. Start development server:
+   ```bash
+   npm run dev
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Supabase Setup
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+You must run the SQL scripts in the `supabase/` folder in your Supabase project's SQL Editor to set up the database. **Run them in this exact order:**
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. `supabase/schema.sql` - Creates tables, views, and auth trigger.
+2. `supabase/rls.sql` - Sets up Row Level Security policies.
+3. `supabase/seed.sql` - Provides instructions for adding initial data.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+**Creating an Admin User:**
+1. Sign up for a new account via the app's `/login` page.
+2. The trigger will automatically create an `employee` profile.
+3. Go to the Supabase Table Editor -> `profiles` table, and manually change the `role` column of your new user to `admin`.
+4. Now you can access the `/admin/users` page to manage other users and grant leave balances.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Deployment to Cloudflare Pages
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+This app is designed as a Single Page Application (SPA) and is perfect for Cloudflare Pages.
+
+1. Build the project:
+   ```bash
+   npm run build
+   ```
+   (This creates a `dist` folder).
+
+2. Cloudflare Pages Configuration:
+   - **Framework Preset:** None (or Vite)
+   - **Build Command:** `npm run build`
+   - **Build Output Directory:** `dist`
+   - **Environment Variables:**
+     - Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` to your Cloudflare Pages project settings.
+
+3. **SPA Routing Setup:**
+   For Cloudflare Pages to correctly handle React Router, you need to create a `_redirects` file in the `public/` directory (or ensure Vite handles it).
+   Actually, Vite + Cloudflare Pages usually requires no extra routing config if you define the SPA catch-all, but you can explicitly add a file `public/_redirects` with:
+   ```
+   /* /index.html 200
+   ```
+
+## Architecture & Tech Stack
+- **Frontend:** React 19, TypeScript strict, Vite
+- **Styling:** Tailwind CSS
+- **State Management:** React Query (TanStack Query) for data fetching
+- **Routing:** React Router v6
+- **Forms:** React Hook Form
+- **Backend:** Supabase (Auth, Postgres, RLS)
