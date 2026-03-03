@@ -29,9 +29,10 @@ export interface LeaveRequest {
   end_date: string;
   is_half_day: boolean;
   half_day_type: HalfDayType;
-  num_days: number; // Added: explicit number of business days
+  num_days: number;
   reason: string | null;
   status: LeaveStatus;
+  attachment_url: string | null; // Added for file attachments
   manager_comment: string | null;
   decided_by: string | null;
   decided_at: string | null;

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState, EmptyState } from '../../components/ui/States';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { ClipboardList, CheckCircle2, XCircle } from 'lucide-react';
+import { ClipboardList, CheckCircle2, XCircle, Paperclip } from 'lucide-react';
 
 const typeLabels: Record<string, string> = {
   paid_leave: '年次有給休暇',
@@ -101,7 +101,7 @@ export function ManageRequests() {
     }
   };
 
-  if (profile?.role === 'employee') return <ErrorState message="アクセス権限がありません。" />;
+  if (profile?.role === 'employee') return <ErrorState message="アクセス権限가ありません。" />;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -140,7 +140,7 @@ export function ManageRequests() {
                     <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日付</th>
                     <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日数</th>
                     <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">理由</th>
-                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">ステータス</th>
+                    <th className="px-6 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">ステータ스</th>
                     <th className="px-6 py-4 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">操作</th>
                   </tr>
                 </thead>
@@ -162,7 +162,14 @@ export function ManageRequests() {
                         {req.num_days || (req.is_half_day ? 0.5 : '-')} <span className="text-[10px] font-bold text-slate-400">日</span>
                       </td>
                       <td className="px-6 py-4 text-xs font-medium text-slate-500 max-w-xs truncate" title={req.reason || ''}>
-                        {req.reason || '-'}
+                        <div className="flex items-center space-x-2">
+                          {req.attachment_url && (
+                            <a href={req.attachment_url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="添付ファイルを表示">
+                              <Paperclip className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          <span>{req.reason || '-'}</span>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full uppercase tracking-wider
