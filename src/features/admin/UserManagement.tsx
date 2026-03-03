@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabaseClient';
 import type { Profile } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
-import { UserCheck, Shield, Eye, EyeOff } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
@@ -36,11 +36,15 @@ export function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
+    onError: (err: any) => {
+      alert('役割の更新に失敗しました: ' + err.message);
+    }
   });
 
   // Update team calendar permission - admin and manager can change
   const updatePermissionMutation = useMutation({
     mutationFn: async ({ userId, canView }: { userId: string, canView: boolean }) => {
+      console.log('Updating permission for:', userId, 'to:', canView);
       const { error } = await supabase
         .from('profiles')
         .update({ can_view_all_leaves: canView })
@@ -50,6 +54,10 @@ export function UserManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
+    onError: (err: any) => {
+      console.error('Permission update error:', err);
+      alert('参照権限の更新に失敗しました。SQLスクリプトが実行されているか確認してください。\nエラー: ' + err.message);
+    }
   });
 
   const grantLeaveMutation = useMutation({
@@ -129,13 +137,8 @@ export function UserManagement() {
                 {users?.map((u) => {
                   const targetIsStaff = u.role === 'admin' || u.role === 'manager';
                   const isEmployee = u.role === 'employee';
-                  
-                  // Logical check for the UI state
-                  const isChecked = targetIsStaff || u.can_view_all_leaves;
-                  
-                  // Permission to toggle: 
-                  // 1. Current user must be Admin or Manager (already handled by page access)
-                  // 2. Target must be an Employee (Staff are always allowed and cannot be disabled)
+                  const isChecked = targetIsStaff || !!u.can_view_all_leaves;
+                  const isUpdating = updatePermissionMutation.isPending && updatePermissionMutation.variables?.userId === u.id;
                   const canToggle = isEmployee && !updatePermissionMutation.isPending;
 
                   return (
@@ -160,16 +163,17 @@ export function UserManagement() {
                         <div className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl border transition-all ${
                           isChecked ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-slate-100 border-slate-300 text-slate-400'
                         }`}>
-                          <div className={`relative inline-flex items-center ${canToggle ? 'cursor-pointer' : 'cursor-default'}`}>
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              disabled={!canToggle}
-                              onChange={(e) => updatePermissionMutation.mutate({ userId: u.id, canView: e.target.checked })}
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => canToggle && updatePermissionMutation.mutate({ userId: u.id, canView: !isChecked })}
+                            disabled={!canToggle}
+                            className={`relative inline-flex items-center transition-all ${canToggle ? 'cursor-pointer hover:scale-105' : 'cursor-default opacity-80'}`}
+                          >
+                            <div className={`w-11 h-6 rounded-full transition-colors ${isChecked ? 'bg-indigo-600' : 'bg-slate-300'}`}></div>
+                            <div className={`absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform ${isChecked ? 'translate-x-5' : 'translate-x-0'} flex items-center justify-center`}>
+                              {isUpdating && <Loader2 className="w-3 h-3 text-indigo-600 animate-spin" />}
+                            </div>
+                          </button>
                           <span className="text-[12px] font-black uppercase tracking-tight flex items-center">
                             {isChecked ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
                             {targetIsStaff ? '常に許可' : (u.can_view_all_leaves ? '常に許可' : '参照制限')}
