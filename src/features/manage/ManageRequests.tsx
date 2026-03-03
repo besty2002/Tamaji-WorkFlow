@@ -148,7 +148,12 @@ export function ManageRequests() {
                   {requests.map((req) => (
                     <tr key={req.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-slate-900">{req.profiles?.display_name || req.profiles?.email?.split('@')[0]}</div>
+                        <div className="flex items-center">
+                          <div className="text-sm font-bold text-slate-900">{req.profiles?.display_name || req.profiles?.email?.split('@')[0]}</div>
+                          {req.user_id === user?.id && (
+                            <span className="ml-2 px-1.5 py-0.5 bg-indigo-100 text-indigo-600 text-[9px] font-black rounded uppercase tracking-tighter">本人</span>
+                          )}
+                        </div>
                         <div className="text-[10px] text-slate-400 font-medium">{req.profiles?.email}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
