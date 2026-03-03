@@ -6,6 +6,7 @@ import { RequestForm } from '../features/requests/RequestForm';
 import { ManageRequests } from '../features/manage/ManageRequests';
 import { UserManagement } from '../features/admin/UserManagement';
 import { LoginForm } from '../features/auth/LoginForm';
+import { LeaveCalendar } from '../features/calendar/LeaveCalendar';
 import { useAuth } from '../features/auth/AuthContext';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) {
@@ -40,6 +41,10 @@ export const router = createBrowserRouter([
       {
         path: '/',
         element: <Dashboard />,
+      },
+      {
+        path: '/calendar',
+        element: <LeaveCalendar />,
       },
       {
         path: '/requests',

@@ -14,6 +14,7 @@ export function Layout() {
 
   const navItems = [
     { label: 'ダッシュボード', path: '/', icon: Calendar },
+    { label: '休暇カレンダー', path: '/calendar', icon: ClipboardList },
     { label: '申請一覧', path: '/requests', icon: ClipboardList },
   ];
 
