@@ -7,7 +7,7 @@ import { Input } from '../../components/ui/Input';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function ProfileSettings() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -41,9 +41,10 @@ export function ProfileSettings() {
       // Invalidate queries to refresh data across the app
       queryClient.invalidateQueries({ queryKey: ['leaveBalance'] });
       queryClient.invalidateQueries({ queryKey: ['approvedRequests'] });
-      // Reloading context state by just waiting for the next refresh or manually if needed
-      // Most of our components rely on the context which we might need to refresh
-      window.location.reload(); // Simple way to ensure AuthContext picks up changes
+      
+      // Manually trigger a refresh in context just in case real-time is slow
+      await refreshProfile();
+      
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || '更新中にエラーが発生しました。' });
     } finally {
