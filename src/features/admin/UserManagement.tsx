@@ -4,13 +4,12 @@ import { supabase } from '../../lib/supabaseClient';
 import type { Profile } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
-import { UserCheck, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2, Mail, User, Calendar as CalendarIcon, Settings } from 'lucide-react';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch all users - accessible by admin and manager
   const { data: users, isLoading, error } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
@@ -24,7 +23,6 @@ export function UserManagement() {
     enabled: !!adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'manager'),
   });
 
-  // Update role - only admin can change roles
   const roleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string, role: string }) => {
       const { error } = await supabase
@@ -41,10 +39,8 @@ export function UserManagement() {
     }
   });
 
-  // Update team calendar permission - admin and manager can change
   const updatePermissionMutation = useMutation({
     mutationFn: async ({ userId, canView }: { userId: string, canView: boolean }) => {
-      console.log('Updating permission for:', userId, 'to:', canView);
       const { error } = await supabase
         .from('profiles')
         .update({ can_view_all_leaves: canView })
@@ -55,8 +51,7 @@ export function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (err: any) => {
-      console.error('Permission update error:', err);
-      alert('参照権限の更新に失敗しました。SQLスクリプトが実行されているか確認してください。\nエラー: ' + err.message);
+      alert('参照権限の更新に失敗しました: ' + err.message);
     }
   });
 
@@ -98,31 +93,45 @@ export function UserManagement() {
     grantLeaveMutation.mutate({ userId, days, reason });
   };
 
-  if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限がありません。管理者またはマネージャーのみアクセス可能です。" />;
+  if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限がありません。" />;
   if (isLoading) return <LoadingSpinner />;
   if (error) return <ErrorState message="ユーザーデータの取得中にエラーが発生しました。" />;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-black text-slate-900 flex items-center">
-          <UserCheck className="w-7 h-7 mr-3 text-indigo-600" />
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+      <div className="flex justify-between items-center px-1">
+        <h1 className="text-xl md:text-2xl font-black text-slate-900 flex items-center">
+          <UserCheck className="w-6 h-6 md:w-7 md:h-7 mr-2 md:mr-3 text-indigo-600" />
           ユーザー権限管理
         </h1>
       </div>
 
-      <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
-        <CardHeader className="bg-slate-50/80 border-b border-slate-100 py-6 px-8">
+      {/* Stats Summary for Mobile (Optional but nice) */}
+      <div className="grid grid-cols-2 gap-3 md:hidden">
+        <div className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">総メンバー</div>
+          <div className="text-xl font-black text-slate-900">{users?.length || 0} 名</div>
+        </div>
+        <div className="bg-indigo-600 p-4 rounded-[1.5rem] shadow-indigo-100 shadow-lg">
+          <div className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">管理者/マネージャー</div>
+          <div className="text-xl font-black text-white">{users?.filter(u => u.role !== 'employee').length || 0} 名</div>
+        </div>
+      </div>
+
+      <Card className="border-none shadow-xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
+        <CardHeader className="bg-slate-50/80 border-b border-slate-100 py-4 md:py-6 px-6 md:px-8">
           <div className="flex items-center justify-between">
-            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">登録済みメンバー一覧</h2>
-            <div className="flex items-center text-[10px] font-bold text-slate-400">
+            <h2 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">メンバー一覧</h2>
+            <div className="hidden md:flex items-center text-[10px] font-bold text-slate-400">
               <Shield className="w-3 h-3 mr-1" />
               セキュリティポリシー適用中
             </div>
           </div>
         </CardHeader>
+        
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Desktop View (Table) - Shown on md and up */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100">
               <thead>
                 <tr className="bg-slate-50/30">
@@ -136,10 +145,9 @@ export function UserManagement() {
               <tbody className="divide-y divide-slate-50">
                 {users?.map((u) => {
                   const targetIsStaff = u.role === 'admin' || u.role === 'manager';
-                  const isEmployee = u.role === 'employee';
                   const isChecked = targetIsStaff || !!u.can_view_all_leaves;
                   const isUpdating = updatePermissionMutation.isPending && updatePermissionMutation.variables?.userId === u.id;
-                  const canToggle = isEmployee && !updatePermissionMutation.isPending;
+                  const canToggle = u.role === 'employee' && !updatePermissionMutation.isPending;
 
                   return (
                     <tr key={u.id} className="hover:bg-indigo-50/20 transition-all duration-200 group">
@@ -197,6 +205,98 @@ export function UserManagement() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile View (Card-based) - Hidden on md and up */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {users?.map((u) => {
+              const targetIsStaff = u.role === 'admin' || u.role === 'manager';
+              const isChecked = targetIsStaff || !!u.can_view_all_leaves;
+              const isUpdating = updatePermissionMutation.isPending && updatePermissionMutation.variables?.userId === u.id;
+              const canToggle = u.role === 'employee' && !updatePermissionMutation.isPending;
+
+              return (
+                <div key={u.id} className="p-6 space-y-5">
+                  {/* Header: User Info */}
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-slate-100 rounded-full flex items-center justify-center text-slate-400">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-black text-slate-900 leading-tight truncate max-w-[180px]">{u.email}</div>
+                        <div className="text-xs font-bold text-slate-400 mt-0.5">{u.display_name || '名前未設定'}</div>
+                      </div>
+                    </div>
+                    <div className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${
+                      u.role === 'admin' ? 'bg-red-50 text-red-600 border border-red-100' :
+                      u.role === 'manager' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
+                      'bg-slate-50 text-slate-500 border border-slate-100'
+                    }`}>
+                      {u.role === 'admin' ? '管理者' : u.role === 'manager' ? 'マネージャー' : '一般社員'}
+                    </div>
+                  </div>
+
+                  {/* Actions Grid */}
+                  <div className="grid grid-cols-1 gap-4 pt-2">
+                    {/* Role Select */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">役割設定</label>
+                      <select
+                        value={u.role}
+                        onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
+                        disabled={roleMutation.isPending || u.id === adminProfile.id || adminProfile.role !== 'admin'}
+                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-4 py-3 focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all disabled:opacity-50"
+                      >
+                        <option value="employee">一般社員</option>
+                        <option value="manager">マネージャー</option>
+                        <option value="admin">管理者</option>
+                      </select>
+                    </div>
+
+                    {/* Permission Toggle */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">チームカレンダー参照</label>
+                      <div className={`flex items-center justify-between px-4 py-3 rounded-xl border transition-all ${
+                        isChecked ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : 'bg-slate-50 border-slate-100 text-slate-400'
+                      }`}>
+                        <span className="text-[11px] font-black uppercase tracking-tight flex items-center">
+                          {isChecked ? <Eye className="w-3.5 h-3.5 mr-2" /> : <EyeOff className="w-3.5 h-3.5 mr-2" />}
+                          {targetIsStaff ? '常に許可' : (u.can_view_all_leaves ? '常に許可' : '参照制限')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => canToggle && updatePermissionMutation.mutate({ userId: u.id, canView: !isChecked })}
+                          disabled={!canToggle}
+                          className={`relative inline-flex items-center transition-all ${canToggle ? 'cursor-pointer' : 'cursor-default opacity-50'}`}
+                        >
+                          <div className={`w-10 h-5 rounded-full transition-colors ${isChecked ? 'bg-indigo-600' : 'bg-slate-300'}`}></div>
+                          <div className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${isChecked ? 'translate-x-5' : 'translate-x-0'} flex items-center justify-center shadow-sm`}>
+                            {isUpdating && <Loader2 className="w-2.5 h-2.5 text-indigo-600 animate-spin" />}
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center text-[10px] font-bold text-slate-400">
+                      <CalendarIcon className="w-3 h-3 mr-1" />
+                      登録日: {new Date(u.created_at).toLocaleDateString('ja-JP')}
+                    </div>
+                    <button 
+                      onClick={() => handleGrantLeave(u.id, u.email)}
+                      className="text-xs font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white px-4 py-2.5 rounded-xl border border-indigo-100 transition-all shadow-sm flex items-center"
+                      disabled={grantLeaveMutation.isPending}
+                    >
+                      <Settings className="w-3 h-3 mr-1.5" />
+                      休暇付与
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
