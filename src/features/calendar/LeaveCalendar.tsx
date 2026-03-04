@@ -19,7 +19,7 @@ import {
   getDay
 } from 'date-fns';
 import { ja } from 'date-fns/locale';
-import { ChevronLeft, ChevronRight, User, Calendar as CalendarIcon, Info, Flag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, User, Calendar as CalendarIcon, Info, Flag, Sun, Moon } from 'lucide-react';
 import type { LeaveRequest, PublicHoliday } from '../../types/database';
 
 const typeColors: Record<string, string> = {
@@ -104,10 +104,10 @@ export function LeaveCalendar() {
   const selectedDayHoliday = holidays?.find(h => isSameDay(parseISO(h.date), selectedDate));
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 text-black">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center text-black">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center">
             <CalendarIcon className="w-8 h-8 mr-3 text-indigo-600" />
             休暇カレンダー
           </h1>
@@ -116,7 +116,7 @@ export function LeaveCalendar() {
           </p>
         </div>
         
-        <div className="flex items-center space-x-2 bg-white rounded-2xl border border-slate-200 p-1.5 shadow-sm self-start md:self-center text-black">
+        <div className="flex items-center space-x-2 bg-white rounded-2xl border border-slate-200 p-1.5 shadow-sm self-start md:self-center">
           <button onClick={prevMonth} className="p-2.5 hover:bg-slate-50 rounded-xl transition-all text-slate-400 hover:text-indigo-600">
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -131,8 +131,8 @@ export function LeaveCalendar() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Calendar Grid */}
-        <Card className="lg:col-span-2 border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden">
-          <CardContent className="p-0 text-black">
+        <Card className="lg:col-span-2 border-none shadow-xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden bg-white">
+          <CardContent className="p-0">
             <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/50">
               {['日', '月', '火', '水', '木', '金', '土'].map((day, idx) => (
                 <div key={day} className={`py-4 text-center text-[11px] font-black uppercase tracking-widest ${idx === 0 ? 'text-red-500 bg-red-50/30' : idx === 6 ? 'text-blue-500 bg-blue-50/30' : 'text-slate-400'}`}>
@@ -183,17 +183,20 @@ export function LeaveCalendar() {
                     
                     {/* Names display */}
                     <div className="space-y-1 overflow-hidden">
-                      {dayRequests.slice(0, 2).map((req) => (
+                      {dayRequests.slice(0, 3).map((req) => (
                         <div
                           key={req.id}
-                          className={`text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-lg border font-bold truncate ${typeLightColors[req.type] || typeLightColors.paid_leave}`}
+                          className={`text-[9px] md:text-[10px] px-1.5 md:px-2 py-0.5 rounded-lg border font-bold truncate flex items-center ${typeLightColors[req.type] || typeLightColors.paid_leave}`}
                         >
+                          {req.is_half_day && (
+                            req.half_day_type === 'AM' ? <Sun className="w-2 h-2 mr-1 text-amber-500" /> : <Moon className="w-2 h-2 mr-1 text-indigo-400" />
+                          )}
                           {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
                         </div>
                       ))}
-                      {dayRequests.length > 2 && (
+                      {dayRequests.length > 3 && (
                         <div className="text-[8px] md:text-[9px] font-black text-slate-400 text-center mt-0.5">
-                          + {dayRequests.length - 2} 名
+                          + {dayRequests.length - 3} 名
                         </div>
                       )}
                     </div>
@@ -205,10 +208,10 @@ export function LeaveCalendar() {
         </Card>
 
         {/* Selected Day Details */}
-        <div className="space-y-6 text-black">
+        <div className="space-y-6">
           <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] bg-white overflow-hidden">
             <CardHeader className="bg-slate-900 text-white py-6 px-8 border-none">
-              <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1 text-white">選択された日付</div>
+              <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">選択された日付</div>
               <div className="text-2xl font-black text-white flex items-center">
                 {format(selectedDate, 'yyyy年 MM月 dd日', { locale: ja })}
                 {selectedDayHoliday && (
@@ -225,14 +228,23 @@ export function LeaveCalendar() {
                   selectedDateRequests.map((req) => (
                     <div key={req.id} className="flex items-start space-x-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-white transition-all group">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${typeColors[req.type] || typeColors.paid_leave}`}>
-                        <User className="w-5 h-5" />
+                        {req.is_half_day ? (
+                          req.half_day_type === 'AM' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />
+                        ) : (
+                          <User className="w-5 h-5" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-bold text-slate-900 truncate">
                           {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
                         </div>
-                        <div className="text-xs font-bold text-indigo-600 uppercase mt-0.5">
-                          {typeLabels[req.type]} {req.is_half_day && `(${req.half_day_type === 'AM' ? '午前' : '午後'}半休)`}
+                        <div className="text-xs font-black text-indigo-600 uppercase mt-0.5 flex items-center">
+                          {typeLabels[req.type]} 
+                          {req.is_half_day && (
+                            <span className="ml-2 bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded text-[9px]">
+                              {req.half_day_type === 'AM' ? '午前半休' : '午後半休'}
+                            </span>
+                          )}
                         </div>
                         {req.reason && (
                           <p className="text-xs text-slate-500 mt-2 line-clamp-2 italic font-medium">

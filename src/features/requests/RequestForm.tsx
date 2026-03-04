@@ -9,7 +9,7 @@ import { Input } from '../../components/ui/Input';
 import type { LeaveRequest } from '../../types/database';
 import { format } from 'date-fns';
 import { calculateBusinessDays } from '../../lib/utils';
-import { Calendar, Info, Paperclip, FileIcon, X } from 'lucide-react';
+import { Calendar, Info, Paperclip, FileIcon, X, Sun, Moon } from 'lucide-react';
 
 interface RequestFormData {
   type: string;
@@ -43,6 +43,7 @@ export function RequestForm() {
   });
 
   const isHalfDay = watch('is_half_day');
+  const halfDayType = watch('half_day_type');
   const startDate = watch('start_date');
   const endDate = watch('end_date');
 
@@ -83,8 +84,9 @@ export function RequestForm() {
   useEffect(() => {
     if (isHalfDay) {
       setValue('end_date', startDate);
+      if (!halfDayType) setValue('half_day_type', 'AM');
     }
-  }, [isHalfDay, startDate, setValue]);
+  }, [isHalfDay, startDate, setValue, halfDayType]);
 
   const calculatedDays = calculateBusinessDays(startDate, endDate, isHalfDay, holidays);
 
@@ -146,7 +148,7 @@ export function RequestForm() {
   const isReadonly = isEdit && request?.status !== 'draft' && request?.status !== 'submitted';
 
   return (
-    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 text-black">
       <div className="flex items-center space-x-2 mb-6">
         <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
           <Calendar className="w-6 h-6" />
@@ -155,7 +157,7 @@ export function RequestForm() {
           {isEdit ? (isReadonly ? '休暇申請の詳細' : '休暇申請の編集') : '新規休暇申請'}
         </h1>
       </div>
-      <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] overflow-hidden">
+      <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] overflow-hidden bg-white">
         <CardContent className="p-8">
           {errorMsg && (
             <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm font-semibold animate-in shake duration-300">
@@ -167,7 +169,7 @@ export function RequestForm() {
               <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">休暇の種類</label>
               <select {...register('type')} disabled={isReadonly} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50">
                 <option value="paid_leave">年次有給休暇</option>
-                <option value="sick">病기休暇</option>
+                <option value="sick">病気休暇</option>
                 <option value="special">特別休暇</option>
                 <option value="unpaid">無給休暇</option>
               </select>
@@ -176,30 +178,62 @@ export function RequestForm() {
               <Input label="開始日" type="date" disabled={isReadonly} className="rounded-2xl py-3" {...register('start_date', { required: true })} />
               <Input label="終了日" type="date" disabled={isHalfDay || isReadonly} className="rounded-2xl py-3" {...register('end_date', { required: true })} />
             </div>
-            {!isHalfDay && (
-              <div className="bg-indigo-50 rounded-2xl p-4 flex items-center justify-between border border-indigo-100">
-                <div className="flex items-center text-indigo-700 text-sm font-bold"><Info className="w-4 h-4 mr-2" />申請日数 (土日・祝日を除く)</div>
-                <div className="text-2xl font-black text-indigo-600">{calculatedDays} <span className="text-sm font-bold">日</span></div>
+            
+            <div className="bg-indigo-50/50 rounded-2xl p-4 flex items-center justify-between border border-indigo-100">
+              <div className="flex items-center text-indigo-700 text-sm font-bold">
+                <Info className="w-4 h-4 mr-2" />
+                {isHalfDay ? '申請内容 (半休)' : '申請日数 (土日・祝日を除く)'}
               </div>
-            )}
+              <div className="text-2xl font-black text-indigo-600">{calculatedDays} <span className="text-sm font-bold">日</span></div>
+            </div>
+
             <div className="flex items-center space-x-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <input type="checkbox" id="is_half_day" disabled={isReadonly} {...register('is_half_day')} className="h-5 w-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" />
-              <label htmlFor="is_half_day" className="text-sm font-bold text-slate-700 cursor-pointer select-none">半休を使用する</label>
+              <label htmlFor="is_half_day" className="text-sm font-bold text-slate-700 cursor-pointer select-none">半休 (0.5日) を使用する</label>
             </div>
+
             {isHalfDay && (
-              <div className="animate-in slide-in-from-top-2 duration-300">
-                <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">半休の時間帯</label>
-                <select {...register('half_day_type', { required: isHalfDay })} disabled={isReadonly} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50">
-                  <option value="">午前/午後を選択...</option>
-                  <option value="AM">午前 (AM)</option>
-                  <option value="PM">午後 (PM)</option>
-                </select>
+              <div className="animate-in slide-in-from-top-2 duration-300 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
+                <label className="block text-sm font-black text-slate-500 uppercase tracking-widest ml-1 mb-4">半休の時間帯を選択</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    type="button"
+                    disabled={isReadonly}
+                    onClick={() => setValue('half_day_type', 'AM')}
+                    className={`flex flex-col items-center justify-center p-4 rounded-[1.5rem] border-2 transition-all duration-200 ${
+                      halfDayType === 'AM' 
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                        : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200 hover:text-indigo-600'
+                    }`}
+                  >
+                    <Sun className={`w-6 h-6 mb-2 ${halfDayType === 'AM' ? 'text-white' : 'text-amber-400'}`} />
+                    <span className="font-bold">午前 (AM)</span>
+                    <span className="text-[10px] opacity-60 font-medium">09:00 - 14:00</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isReadonly}
+                    onClick={() => setValue('half_day_type', 'PM')}
+                    className={`flex flex-col items-center justify-center p-4 rounded-[1.5rem] border-2 transition-all duration-200 ${
+                      halfDayType === 'PM' 
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                        : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200 hover:text-indigo-600'
+                    }`}
+                  >
+                    <Moon className={`w-6 h-6 mb-2 ${halfDayType === 'PM' ? 'text-white' : 'text-indigo-400'}`} />
+                    <span className="font-bold">午後 (PM)</span>
+                    <span className="text-[10px] opacity-60 font-medium">14:00 - 18:00</span>
+                  </button>
+                </div>
+                <input type="hidden" {...register('half_day_type', { required: isHalfDay })} />
               </div>
             )}
+
             <div>
               <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">理由</label>
-              <textarea {...register('reason')} disabled={isReadonly} rows={4} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50" placeholder="休暇の理由を入力してください..." />
+              <textarea {...register('reason')} disabled={isReadonly} rows={4} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50" placeholder="休暇의 사유를 입력해주세요..." />
             </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">添付書類 (診断書など)</label>
               {!isReadonly ? (
