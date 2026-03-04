@@ -3,7 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, LucideIcon } from 'lucide-react';
+import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, type LucideIcon } from 'lucide-react';
 
 interface NavItem {
   label: string;
