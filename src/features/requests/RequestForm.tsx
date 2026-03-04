@@ -208,7 +208,6 @@ export function RequestForm() {
                   >
                     <Sun className={`w-6 h-6 mb-2 ${halfDayType === 'AM' ? 'text-white' : 'text-amber-400'}`} />
                     <span className="font-bold">午前 (AM)</span>
-                    <span className="text-[10px] opacity-60 font-medium">09:00 - 14:00</span>
                   </button>
                   <button
                     type="button"
@@ -222,7 +221,6 @@ export function RequestForm() {
                   >
                     <Moon className={`w-6 h-6 mb-2 ${halfDayType === 'PM' ? 'text-white' : 'text-indigo-400'}`} />
                     <span className="font-bold">午後 (PM)</span>
-                    <span className="text-[10px] opacity-60 font-medium">14:00 - 18:00</span>
                   </button>
                 </div>
                 <input type="hidden" {...register('half_day_type', { required: isHalfDay })} />
