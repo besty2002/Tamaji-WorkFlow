@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabaseClient';
 import { LogOut, Calendar, Users, ClipboardList, Menu, X, User } from 'lucide-react';
 
 export function Layout() {
@@ -8,6 +10,22 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Fetch pending requests count for managers/admins
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ['pendingRequestsCount'],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('leave_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'submitted');
+      
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: !!profile && (profile.role === 'manager' || profile.role === 'admin'),
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   const handleSignOut = async () => {
     await signOut();
@@ -21,7 +39,12 @@ export function Layout() {
   ];
 
   if (profile?.role === 'manager' || profile?.role === 'admin') {
-    navItems.push({ label: '申請管理', path: '/manage', icon: Users });
+    navItems.push({ 
+      label: '申請管理', 
+      path: '/manage', 
+      icon: Users,
+      badge: pendingCount > 0 ? pendingCount : undefined
+    });
   }
 
   if (profile?.role === 'admin') {
@@ -64,7 +87,14 @@ export function Layout() {
                         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    <item.icon className={`w-4 h-4 ${location.pathname === item.path ? 'text-indigo-600' : 'text-slate-400'}`} />
+                    <div className="relative">
+                      <item.icon className={`w-4 h-4 ${location.pathname === item.path ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      {('badge' in item) && item.badge && (
+                        <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white ring-2 ring-white">
+                          {item.badge}
+                        </span>
+                      )}
+                    </div>
                     <span>{item.label}</span>
                   </Link>
                 ))}
@@ -125,14 +155,21 @@ export function Layout() {
                   key={item.path}
                   to={item.path}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
                     location.pathname === item.path
                       ? 'bg-indigo-50 text-indigo-700'
                       : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span>{item.label}</span>
+                  <div className="flex items-center space-x-3">
+                    <item.icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </div>
+                  {('badge' in item) && item.badge && (
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
               <div className="pt-4 mt-4 border-t border-slate-100">
