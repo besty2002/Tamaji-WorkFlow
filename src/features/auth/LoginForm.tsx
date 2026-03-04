@@ -21,12 +21,19 @@ export function LoginForm() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
         });
         if (error) throw error;
-        setError('アカウントを作成しました。メールを確認して認証を完了してください。');
+        
+        if (data?.session) {
+          navigate('/');
+        } else {
+          setError('アカウントを作成しました。ログインしてください。');
+          setIsSignUp(false);
+          setPassword('');
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
           email,
