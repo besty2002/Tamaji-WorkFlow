@@ -2,17 +2,24 @@ import { useState } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabaseClient';
-import type { Profile, LeaveBalanceView } from '../../types/database';
+import type { Profile, LeaveBalanceView, LeaveGrant } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState } from '../../components/ui/States';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle, Trash2, PieChart } from 'lucide-react';
+import { UserCheck, Shield, Eye, EyeOff, Loader2, User, Calendar as CalendarIcon, Settings, X, PlusCircle, Trash2, PieChart, History, Edit2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { ja } from 'date-fns/locale';
 
 export function UserManagement() {
   const { profile: adminProfile } = useAuth();
   const queryClient = useQueryClient();
-  const [grantModal, setGrantModal] = useState<{ isOpen: boolean; userId: string; userEmail: string }>({
+  const [grantModal, setGrantModal] = useState<{ isOpen: boolean; userId: string; userEmail: string; editGrant?: LeaveGrant }>({
+    isOpen: false,
+    userId: '',
+    userEmail: '',
+  });
+  const [historyModal, setHistoryModal] = useState<{ isOpen: boolean; userId: string; userEmail: string }>({
     isOpen: false,
     userId: '',
     userEmail: '',
@@ -43,6 +50,21 @@ export function UserManagement() {
       return data as LeaveBalanceView[];
     },
     enabled: !!adminProfile && (adminProfile.role === 'admin' || adminProfile.role === 'manager'),
+  });
+
+  const { data: userGrants, isLoading: grantsLoading } = useQuery({
+    queryKey: ['userGrants', historyModal.userId],
+    queryFn: async () => {
+      if (!historyModal.userId) return [];
+      const { data, error } = await supabase
+        .from('leave_grants')
+        .select('*')
+        .eq('user_id', historyModal.userId)
+        .order('granted_at', { ascending: false });
+      if (error) throw error;
+      return data as LeaveGrant[];
+    },
+    enabled: historyModal.isOpen && !!historyModal.userId,
   });
 
   const roleMutation = useMutation({
@@ -95,27 +117,54 @@ export function UserManagement() {
   });
 
   const grantLeaveMutation = useMutation({
-    mutationFn: async ({ userId, days, reason }: { userId: string, days: number, reason: string }) => {
-      const { error } = await supabase
-        .from('leave_grants')
-        .insert([{
-          user_id: userId,
-          days: days,
-          reason: reason,
-          granted_by: adminProfile?.id
-        }]);
-      if (error) throw error;
+    mutationFn: async ({ userId, days, reason, id }: { userId: string, days: number, reason: string, id?: string }) => {
+      if (id) {
+        const { error } = await supabase
+          .from('leave_grants')
+          .update({ days, reason })
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('leave_grants')
+          .insert([{
+            user_id: userId,
+            days: days,
+            reason: reason,
+            granted_by: adminProfile?.id
+          }]);
+        if (error) throw error;
+      }
     },
-    onSuccess: () => {
-      alert('休暇が正常に付与されました。');
+    onSuccess: (_, variables) => {
+      alert(variables.id ? '休暇付与データが更新されました。' : '休暇が正常に付与されました。');
       setGrantModal({ isOpen: false, userId: '', userEmail: '' });
       setGrantDays('15');
       setGrantReason('定期付与');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       queryClient.invalidateQueries({ queryKey: ['allBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['userGrants'] });
     },
     onError: (err: any) => {
       alert('エラーが発生しました: ' + err.message);
+    }
+  });
+
+  const deleteGrantMutation = useMutation({
+    mutationFn: async (grantId: string) => {
+      const { error } = await supabase
+        .from('leave_grants')
+        .delete()
+        .eq('id', grantId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['allBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['userGrants'] });
+    },
+    onError: (err: any) => {
+      alert('削除に失敗しました: ' + err.message);
     }
   });
 
@@ -129,7 +178,8 @@ export function UserManagement() {
     grantLeaveMutation.mutate({ 
       userId: grantModal.userId, 
       days, 
-      reason: grantReason 
+      reason: grantReason,
+      id: grantModal.editGrant?.id
     });
   };
 
@@ -138,12 +188,29 @@ export function UserManagement() {
       alert('自分自身を削除することはできません。');
       return;
     }
-    if (window.confirm(`${email} さんを削除してもよろしいですか？\nこの操作は取り消しできず、関連するすべての休暇申請도削除됩니다.`)) {
+    if (window.confirm(`${email} さんを削除してもよろしいですか？\nこの操作は取り消しできず、関連するすべての休暇申請も削除されます。`)) {
       deleteUserMutation.mutate(userId);
     }
   };
 
-  if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限がありません。" />;
+  const handleEditGrant = (grant: LeaveGrant) => {
+    setGrantModal({
+      isOpen: true,
+      userId: grant.user_id,
+      userEmail: historyModal.userEmail,
+      editGrant: grant
+    });
+    setGrantDays(grant.days.toString());
+    setGrantReason(grant.reason || '');
+  };
+
+  const handleDeleteGrant = (grantId: string) => {
+    if (window.confirm('この休暇付与データを削除してもよろしいですか？')) {
+      deleteGrantMutation.mutate(grantId);
+    }
+  };
+
+  if (adminProfile?.role !== 'admin' && adminProfile?.role !== 'manager') return <ErrorState message="アクセス権限가ありません。" />;
   if (usersLoading || balancesLoading) return <LoadingSpinner />;
   if (usersError) return <ErrorState message="ユーザーデータの取得中にエラーが発生しました。" />;
 
@@ -248,7 +315,14 @@ export function UserManagement() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-8 py-5 text-right space-x-2">
+                      <td className="px-8 py-5 text-right space-x-1">
+                        <button 
+                          onClick={() => setHistoryModal({ isOpen: true, userId: u.id, userEmail: u.email })}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                          title="履歴表示"
+                        >
+                          <History className="w-5 h-5" />
+                        </button>
                         <button 
                           onClick={() => setGrantModal({ isOpen: true, userId: u.id, userEmail: u.email })}
                           className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
@@ -382,16 +456,25 @@ export function UserManagement() {
                   <div className="flex items-center justify-between pt-2">
                     <div className="flex items-center text-[10px] font-bold text-slate-400">
                       <CalendarIcon className="w-3 h-3 mr-1" />
-                      登録日: {new Date(u.created_at).toLocaleDateString('ja-JP')}
+                      {new Date(u.created_at).toLocaleDateString('ja-JP')}
                     </div>
-                    <button 
-                      onClick={() => setGrantModal({ isOpen: true, userId: u.id, userEmail: u.email })}
-                      className="text-xs font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white px-4 py-2.5 rounded-xl border border-indigo-100 transition-all shadow-sm flex items-center"
-                      disabled={grantLeaveMutation.isPending}
-                    >
-                      <Settings className="w-3 h-3 mr-1.5" />
-                      休暇付与
-                    </button>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => setHistoryModal({ isOpen: true, userId: u.id, userEmail: u.email })}
+                        className="text-xs font-black text-slate-500 bg-slate-50 hover:bg-slate-100 px-3 py-2.5 rounded-xl border border-slate-100 transition-all shadow-sm flex items-center"
+                      >
+                        <History className="w-3 h-3 mr-1.5" />
+                        履歴
+                      </button>
+                      <button 
+                        onClick={() => setGrantModal({ isOpen: true, userId: u.id, userEmail: u.email })}
+                        className="text-xs font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white px-3 py-2.5 rounded-xl border border-indigo-100 transition-all shadow-sm flex items-center"
+                        disabled={grantLeaveMutation.isPending}
+                      >
+                        <Settings className="w-3 h-3 mr-1.5" />
+                        付与
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -400,9 +483,68 @@ export function UserManagement() {
         </CardContent>
       </Card>
 
+      {/* Grant History Modal */}
+      {historyModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setHistoryModal({ ...historyModal, isOpen: false })}></div>
+          <Card className="relative w-full max-w-lg border-none shadow-2xl rounded-[2.5rem] overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 bg-white">
+            <CardHeader className="bg-slate-900 text-white p-6 border-none relative">
+              <button 
+                onClick={() => setHistoryModal({ ...historyModal, isOpen: false })}
+                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="text-xl font-black tracking-tight flex items-center">
+                <History className="w-5 h-5 mr-3 text-indigo-400" />
+                休暇付与履歴
+              </h2>
+              <p className="text-white/50 text-[10px] font-bold uppercase tracking-widest mt-1">{historyModal.userEmail}</p>
+            </CardHeader>
+            <CardContent className="p-0 max-h-[60vh] overflow-y-auto">
+              {grantsLoading ? (
+                <div className="p-12 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>
+              ) : userGrants && userGrants.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {userGrants.map((grant) => (
+                    <div key={grant.id} className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                      <div>
+                        <div className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">
+                          {format(new Date(grant.granted_at), 'yyyy年 MM月 dd日', { locale: ja })}
+                        </div>
+                        <div className="text-sm font-bold text-slate-900">{grant.reason || '理由なし'}</div>
+                        <div className="text-lg font-black text-indigo-600 mt-1">
+                          +{grant.days}<span className="text-[10px] ml-0.5">日</span>
+                        </div>
+                      </div>
+                      <div className="flex space-x-1">
+                        <button 
+                          onClick={() => handleEditGrant(grant)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteGrant(grant.id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-12 text-center text-slate-400 font-bold">付与履歴がありません。</div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Grant Leave Modal */}
       {grantModal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => !grantLeaveMutation.isPending && setGrantModal({ ...grantModal, isOpen: false })}></div>
           <Card className="relative w-full max-w-md border-none shadow-2xl rounded-[2.5rem] overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 bg-white">
             <CardHeader className="bg-slate-900 text-white p-8 border-none relative">
@@ -414,9 +556,9 @@ export function UserManagement() {
                 <X className="w-5 h-5" />
               </button>
               <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-500/20">
-                <PlusCircle className="w-7 h-7 text-white" />
+                {grantModal.editGrant ? <Edit2 className="w-7 h-7 text-white" /> : <PlusCircle className="w-7 h-7 text-white" />}
               </div>
-              <h2 className="text-2xl font-black tracking-tight">休暇の特別付与</h2>
+              <h2 className="text-2xl font-black tracking-tight">{grantModal.editGrant ? '休暇付与の修正' : '休暇의 特別付与'}</h2>
               <p className="text-white/50 text-xs font-bold uppercase tracking-widest mt-1">{grantModal.userEmail}</p>
             </CardHeader>
             <CardContent className="p-8">
@@ -462,7 +604,7 @@ export function UserManagement() {
                     {grantLeaveMutation.isPending ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      '付与を確定'
+                      grantModal.editGrant ? '修正を保存' : '付与を確定'
                     )}
                   </Button>
                 </div>
