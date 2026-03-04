@@ -3,7 +3,14 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { LogOut, Calendar, Users, ClipboardList, Menu, X, User } from 'lucide-react';
+import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, LucideIcon } from 'lucide-react';
+
+interface NavItem {
+  label: string;
+  path: string;
+  icon: LucideIcon;
+  badge?: number;
+}
 
 export function Layout() {
   const { profile, signOut } = useAuth();
@@ -32,7 +39,7 @@ export function Layout() {
     navigate('/login');
   };
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { label: 'ダッシュボード', path: '/', icon: Calendar },
     { label: '休暇カレンダー', path: '/calendar', icon: Calendar },
     { label: '申請一覧', path: '/requests', icon: ClipboardList },
@@ -89,7 +96,7 @@ export function Layout() {
                   >
                     <div className="relative">
                       <item.icon className={`w-4 h-4 ${location.pathname === item.path ? 'text-indigo-600' : 'text-slate-400'}`} />
-                      {('badge' in item) && item.badge && (
+                      {item.badge !== undefined && item.badge > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white ring-2 ring-white">
                           {item.badge}
                         </span>
@@ -165,7 +172,7 @@ export function Layout() {
                     <item.icon className="w-5 h-5" />
                     <span>{item.label}</span>
                   </div>
-                  {('badge' in item) && item.badge && (
+                  {item.badge !== undefined && item.badge > 0 && (
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                       {item.badge}
                     </span>
