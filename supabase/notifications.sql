@@ -29,33 +29,40 @@ on public.notifications for update
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
 
--- Trigger to notify admins when leave_request is submitted
+-- Trigger to notify admins/employees on leave_request changes
 create or replace function public.notify_on_leave_request()
 returns trigger as $$
 declare
   requester_name text;
   admin_id uuid;
 begin
-  -- Get requester name
+  -- Get requester name for the admin notification
   select display_name into requester_name from public.profiles where id = new.user_id;
 
-  -- 1. When a request is submitted
-  if (TG_OP = 'INSERT' and new.status = 'submitted') or (TG_OP = 'UPDATE' and old.status = 'draft' and new.status = 'submitted') then
-    -- Notify all admins/managers
+  -- 1. When a request is SUBMITTED (Notify Admins)
+  -- Case A: New request inserted as 'submitted'
+  -- Case B: Existing 'draft' request updated to 'submitted'
+  if (TG_OP = 'INSERT' and new.status = 'submitted') or 
+     (TG_OP = 'UPDATE' and old.status = 'draft' and new.status = 'submitted') then
+    
     for admin_id in select id from public.profiles where role in ('admin', 'manager') loop
-      insert into public.notifications (user_id, type, title, body, url)
-      values (
-        admin_id,
-        'leave_submitted',
-        'New Leave Request',
-        requester_name || ' submitted a ' || new.type || ' request (' || new.start_date || ' to ' || new.end_date || ')',
-        '/manage' -- Path for managers to view requests
-      );
+      -- Don't notify the requester themselves if they happen to be an admin
+      if admin_id != new.user_id then
+        insert into public.notifications (user_id, type, title, body, url)
+        values (
+          admin_id,
+          'leave_submitted',
+          'New Leave Request',
+          requester_name || ' submitted a ' || new.type || ' request (' || new.start_date || ' to ' || new.end_date || ')',
+          '/manage'
+        );
+      end if;
     end loop;
   end if;
 
-  -- 2. When a request is approved or rejected
-  if (TG_OP = 'UPDATE' and old.status = 'submitted' and new.status in ('approved', 'rejected')) then
+  -- 2. When a request is APPROVED or REJECTED (Notify Employee)
+  -- Trigger whenever status changes to approved/rejected, regardless of previous status
+  if (TG_OP = 'UPDATE' and old.status != new.status and new.status in ('approved', 'rejected')) then
     insert into public.notifications (user_id, type, title, body, url)
     values (
       new.user_id,
