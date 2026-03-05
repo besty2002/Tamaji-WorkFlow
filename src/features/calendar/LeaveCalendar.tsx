@@ -96,6 +96,10 @@ export function LeaveCalendar() {
   if (requestsError) return <ErrorState message="カレンダーデータの取得中にエラーが発生しました。" />;
 
   const selectedDateRequests = requests?.filter(req => {
+    const dayOfWeek = getDay(selectedDate);
+    const isHoliday = holidays?.some(h => isSameDay(parseISO(h.date), selectedDate));
+    if (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) return false;
+
     const start = parseISO(req.start_date);
     const end = parseISO(req.end_date);
     return isWithinInterval(selectedDate, { start, end });
@@ -142,17 +146,20 @@ export function LeaveCalendar() {
             </div>
             <div className="grid grid-cols-7">
               {days.map((day) => {
+                const dayOfWeek = getDay(day); // 0: Sunday, 6: Saturday
+                const holiday = holidays?.find(h => isSameDay(parseISO(h.date), day));
+                const isHoliday = !!holiday;
+                
                 const dayRequests = requests?.filter(req => {
+                  if (dayOfWeek === 0 || dayOfWeek === 6 || isHoliday) return false;
                   const start = parseISO(req.start_date);
                   const end = parseISO(req.end_date);
                   return isWithinInterval(day, { start, end });
                 }) || [];
 
-                const holiday = holidays?.find(h => isSameDay(parseISO(h.date), day));
                 const isSelected = isSameDay(day, selectedDate);
                 const isToday = isSameDay(day, new Date());
                 const isCurrentMonth = isSameMonth(day, monthStart);
-                const dayOfWeek = getDay(day); // 0: Sunday, 6: Saturday
 
                 return (
                   <div
