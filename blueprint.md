@@ -26,14 +26,14 @@ A comprehensive React + Supabase application for managing employee leave request
 - **User Management (Admin Only):** Admins can grant additional leave days to users and manage user roles.
 - **Leave Balance:** Real-time calculation of leave balance via a PostgreSQL view (`leave_balance_view`).
 
-### 4. Visibility & Calendar
-- **Shared Calendar:** A team-wide calendar showing all **approved** leave requests.
-- **RLS Security:**
-    - Users can see their own requests and grants.
-    - Everyone can see **approved** requests (for calendar visibility).
-    - Managers/Admins can see all requests for processing.
-
-## Current Plan (Updates)
+### 5. Notification System
+- **In-App Notifications:** Real-time bell icon with unread badge count and a dedicated notifications page.
+- **Automated Triggers:** 
+    - When an employee submits a request, all managers/admins are notified.
+    - When a request is approved/rejected, the employee is notified.
+- **Email Notifications:** Supabase Edge Function sends emails via Resend when a new notification is created.
+- **Idempotency:** Email sending status is tracked to prevent duplicate emails.
+- **Real-time Updates:** Uses Supabase Realtime to update the notification badge instantly.
 
 *   **Database Fixes:**
     - Added `num_days` column to `leave_requests` to fix schema cache errors.

@@ -48,6 +48,19 @@ export interface PublicHoliday {
   name: string;
 }
 
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'leave_submitted' | 'leave_approved' | 'leave_rejected' | 'comment_added' | 'system';
+  title: string;
+  body: string;
+  url: string | null;
+  read_at: string | null;
+  is_email_sent: boolean;
+  sent_at: string | null;
+  created_at: string;
+}
+
 export interface LeaveBalanceView {
   user_id: string;
   granted_sum: number;

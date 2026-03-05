@@ -3,7 +3,8 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, type LucideIcon } from 'lucide-react';
+import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, Bell, type LucideIcon } from 'lucide-react';
+import { NotificationBell } from '../components/ui/NotificationBell';
 
 interface NavItem {
   label: string;
@@ -110,6 +111,8 @@ export function Layout() {
 
             {/* Desktop User Menu */}
             <div className="hidden md:flex items-center space-x-4">
+              <NotificationBell />
+              <div className="h-4 w-px bg-slate-200"></div>
               <Link 
                 to="/profile" 
                 className="flex items-center space-x-2 px-3 py-1.5 rounded-full hover:bg-slate-100 transition-all text-sm font-medium text-slate-700"
@@ -157,6 +160,22 @@ export function Layout() {
                   <div className="text-xs text-slate-500">{profile?.role ? roleLabels[profile.role] : ''}</div>
                 </div>
               </div>
+              
+              <Link
+                to="/notifications"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center justify-between px-4 py-3 rounded-xl text-base font-semibold transition-colors ${
+                  location.pathname === '/notifications'
+                    ? 'bg-indigo-50 text-indigo-700'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Bell className="w-5 h-5" />
+                  <span>通知</span>
+                </div>
+              </Link>
+
               {navItems.map((item) => (
                 <Link
                   key={item.path}
