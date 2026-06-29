@@ -3,7 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../features/auth/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, Bell, Utensils, type LucideIcon } from 'lucide-react';
+import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, Bell, Utensils, ReceiptText, type LucideIcon } from 'lucide-react';
 import { NotificationBell } from '../components/ui/NotificationBell';
 
 interface NavItem {
@@ -48,6 +48,11 @@ export function Layout() {
   ];
 
   if (profile?.role === 'manager' || profile?.role === 'admin') {
+    navItems.push({
+      label: 'ランチ精算',
+      path: '/lunch/admin',
+      icon: ReceiptText,
+    });
     navItems.push({ 
       label: '申請管理',
       path: '/manage', 
@@ -72,56 +77,56 @@ export function Layout() {
     <div className="min-h-screen bg-[#f8fafc] flex flex-col font-sans">
       {/* Header */}
       <header className="sticky top-0 z-50 nav-blur border-b border-slate-200/60 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/" className="flex items-center space-x-2">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-indigo-200 shadow-lg text-white">
-                  <Calendar className="w-5 h-5" />
+        <div className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-5">
+          <div className="flex h-16 justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center">
+              <Link to="/" className="flex shrink-0 items-center space-x-1.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-lg shadow-indigo-200">
+                  <Calendar className="h-5 w-5" />
                 </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                <span className="whitespace-nowrap bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-xl font-bold text-transparent">
                   Tamaji
                 </span>
               </Link>
               
               {/* Desktop Nav */}
-              <nav className="hidden md:ml-10 md:flex md:space-x-1">
+              <nav className="hidden min-w-0 md:ml-5 md:flex md:space-x-0.5">
                 {navItems.map((item) => (
                   <Link
                     key={item.path}
                     to={item.path}
-                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-200 flex items-center space-x-2 ${
+                    className={`flex shrink-0 items-center space-x-1 whitespace-nowrap rounded-full px-2 py-1.5 text-xs font-semibold transition-all duration-200 lg:px-2.5 ${
                       location.pathname === item.path
                         ? 'bg-indigo-50 text-indigo-700'
                         : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <div className="relative">
-                      <item.icon className={`w-4 h-4 ${location.pathname === item.path ? 'text-indigo-600' : 'text-slate-400'}`} />
+                      <item.icon className={`h-3.5 w-3.5 ${location.pathname === item.path ? 'text-indigo-600' : 'text-slate-400'}`} />
                       {item.badge !== undefined && item.badge > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 text-[8px] font-bold text-white ring-2 ring-white">
                           {item.badge}
                         </span>
                       )}
                     </div>
-                    <span>{item.label}</span>
+                    <span className="whitespace-nowrap">{item.label}</span>
                   </Link>
                 ))}
               </nav>
             </div>
 
             {/* Desktop User Menu */}
-            <div className="hidden md:flex items-center space-x-4">
+            <div className="hidden shrink-0 items-center space-x-2 md:flex">
               <NotificationBell />
               <div className="h-4 w-px bg-slate-200"></div>
               <Link 
                 to="/profile" 
-                className="flex items-center space-x-2 px-3 py-1.5 rounded-full hover:bg-slate-100 transition-all text-sm font-medium text-slate-700"
+                className="flex items-center space-x-1.5 rounded-full px-2 py-1.5 text-xs font-medium text-slate-700 transition-all hover:bg-slate-100 xl:px-3 xl:text-sm"
               >
                 <div className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-slate-600">
                   <User className="w-4 h-4" />
                 </div>
-                <span>{profile?.display_name || profile?.email?.split('@')[0]}</span>
+                <span className="hidden whitespace-nowrap xl:inline">{profile?.display_name || profile?.email?.split('@')[0]}</span>
                 <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
                   {profile?.role ? roleLabels[profile.role] : ''}
                 </span>

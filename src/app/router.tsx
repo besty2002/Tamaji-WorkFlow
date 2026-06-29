@@ -12,6 +12,7 @@ const UserManagement = lazy(() => import('../features/admin/UserManagement').the
 const LoginForm = lazy(() => import('../features/auth/LoginForm').then((module) => ({ default: module.LoginForm })));
 const LeaveCalendar = lazy(() => import('../features/calendar/LeaveCalendar').then((module) => ({ default: module.LeaveCalendar })));
 const LunchCalendar = lazy(() => import('../features/lunch/LunchCalendar').then((module) => ({ default: module.LunchCalendar })));
+const LunchSettlement = lazy(() => import('../features/lunch/LunchSettlement').then((module) => ({ default: module.LunchSettlement })));
 const ProfileSettings = lazy(() => import('../features/profile/ProfileSettings').then((module) => ({ default: module.ProfileSettings })));
 const NotificationList = lazy(() => import('../features/notifications/NotificationList').then((module) => ({ default: module.NotificationList })));
 
@@ -43,6 +44,14 @@ export const router = createBrowserRouter([
       {
         path: '/lunch',
         element: withSuspense(<LunchCalendar />),
+      },
+      {
+        path: '/lunch/admin',
+        element: (
+          <ProtectedRoute allowedRoles={['manager', 'admin']}>
+            {withSuspense(<LunchSettlement />)}
+          </ProtectedRoute>
+        ),
       },
       {
         path: '/profile',
