@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { format } from 'date-fns';
+import { Calendar, FileIcon, Info, Moon, Paperclip, Sun, X } from 'lucide-react';
+import { useAuth } from '../auth/useAuth';
 import { supabase } from '../../lib/supabaseClient';
+import { calculateBusinessDays } from '../../lib/utils';
+import { getErrorMessage } from '../../lib/errors';
+import type { HalfDayType, LeaveRequest, LeaveStatus, LeaveType } from '../../types/database';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import type { LeaveRequest } from '../../types/database';
-import { format } from 'date-fns';
-import { calculateBusinessDays } from '../../lib/utils';
-import { Calendar, Info, Paperclip, FileIcon, X, Sun, Moon } from 'lucide-react';
+import { useToast } from '../../components/ui/useToast';
 
 interface RequestFormData {
-  type: string;
+  type: LeaveType;
   start_date: string;
   end_date: string;
   is_half_day: boolean;
@@ -20,10 +22,45 @@ interface RequestFormData {
   reason: string;
 }
 
+type RequestPayload = {
+  user_id: string;
+  type: LeaveType;
+  start_date: string;
+  end_date: string;
+  is_half_day: boolean;
+  half_day_type: HalfDayType;
+  num_days: number;
+  reason: string;
+  status: LeaveStatus;
+};
+
+const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ATTACHMENT_TYPES = ['image/png', 'image/jpeg', 'application/pdf'];
+const ALLOWED_ATTACHMENT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'pdf'];
+
+function validateAttachment(file: File | null): string | null {
+  if (!file) return null;
+
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    return '添付ファイルは5MB以下にしてください。';
+  }
+
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const isAllowedType = ALLOWED_ATTACHMENT_TYPES.includes(file.type);
+  const isAllowedExtension = ALLOWED_ATTACHMENT_EXTENSIONS.includes(extension);
+
+  if (!isAllowedType || !isAllowedExtension) {
+    return '添付できるファイルは PNG、JPG、PDF のみです。';
+  }
+
+  return null;
+}
+
 export function RequestForm() {
   const { id } = useParams();
   const isEdit = !!id && id !== 'new';
   const { user } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -39,7 +76,7 @@ export function RequestForm() {
       is_half_day: false,
       half_day_type: '',
       reason: '',
-    }
+    },
   });
 
   const isHalfDay = watch('is_half_day');
@@ -49,36 +86,51 @@ export function RequestForm() {
 
   useEffect(() => {
     const fetchHolidays = async () => {
-      const { data } = await supabase.from('public_holidays').select('date');
+      const { data, error } = await supabase.from('public_holidays').select('date');
+      if (error) {
+        const message = getErrorMessage(error, '祝日データの取得に失敗しました。');
+        setErrorMsg(message);
+        showToast({ variant: 'error', message });
+        return;
+      }
+
       if (data) {
-        setHolidays(data.map((h: any) => h.date));
+        setHolidays(data.map((holiday: { date: string }) => holiday.date));
       }
     };
     fetchHolidays();
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
-    if (isEdit) {
-      const fetchRequest = async () => {
-        const { data } = await supabase
-          .from('leave_requests')
-          .select('*')
-          .eq('id', id)
-          .single();
-        if (data) {
-          setRequest(data as LeaveRequest);
-          reset({
-            type: data.type,
-            start_date: data.start_date,
-            end_date: data.end_date,
-            is_half_day: data.is_half_day,
-            half_day_type: data.half_day_type || '',
-            reason: data.reason || '',
-          });
-        }
-      };
-      fetchRequest();
-    }
+    if (!isEdit) return;
+
+    const fetchRequest = async () => {
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        setErrorMsg(getErrorMessage(error, '申請データの取得中にエラーが発生しました。'));
+        return;
+      }
+
+      if (data) {
+        const leaveRequest = data as LeaveRequest;
+        setRequest(leaveRequest);
+        reset({
+          type: leaveRequest.type,
+          start_date: leaveRequest.start_date,
+          end_date: leaveRequest.end_date,
+          is_half_day: leaveRequest.is_half_day,
+          half_day_type: leaveRequest.half_day_type || '',
+          reason: leaveRequest.reason || '',
+        });
+      }
+    };
+
+    fetchRequest();
   }, [id, isEdit, reset]);
 
   useEffect(() => {
@@ -86,43 +138,63 @@ export function RequestForm() {
       setValue('end_date', startDate);
       if (!halfDayType) setValue('half_day_type', 'AM');
     }
-  }, [isHalfDay, startDate, setValue, halfDayType]);
+  }, [halfDayType, isHalfDay, setValue, startDate]);
 
   const calculatedDays = calculateBusinessDays(startDate, endDate, isHalfDay, holidays);
+  const isReadonly = isEdit && request?.status !== 'draft' && request?.status !== 'submitted';
 
   const uploadFile = async (requestId: string): Promise<string | null> => {
     if (!file || !user) return null;
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${user.id}/${requestId}.${fileExt}`;
     const filePath = `attachments/${fileName}`;
     const { error: uploadError } = await supabase.storage.from('attachments').upload(filePath, file, { upsert: true });
+
     if (uploadError) throw uploadError;
+
     const { data } = supabase.storage.from('attachments').getPublicUrl(filePath);
     return data.publicUrl;
   };
 
   const onSubmit = async (data: RequestFormData, status: 'draft' | 'submitted') => {
     if (!user) return;
+
+    if (data.start_date > data.end_date) {
+      setErrorMsg('開始日は終了日以前の日付を選択してください。');
+      return;
+    }
+
     if (calculatedDays <= 0) {
       setErrorMsg('有効な営業日が選択されていません。');
       return;
     }
+
+    const attachmentError = validateAttachment(file);
+    if (attachmentError) {
+      setErrorMsg(attachmentError);
+      showToast({ variant: 'error', message: attachmentError });
+      return;
+    }
+
     setLoading(true);
     setErrorMsg('');
+
     try {
-      if (data.start_date > data.end_date) throw new Error('開始日は終了日보다前である必要があります。');
-      const payload: any = {
+      const payload: RequestPayload = {
         user_id: user.id,
         type: data.type,
         start_date: data.start_date,
         end_date: data.end_date,
         is_half_day: data.is_half_day,
-        half_day_type: data.is_half_day ? data.half_day_type : null,
+        half_day_type: data.is_half_day ? (data.half_day_type || 'AM') : null,
         num_days: calculatedDays,
         reason: data.reason,
-        status: status,
+        status,
       };
+
       let currentRequestId = id;
+
       if (isEdit) {
         const { error } = await supabase.from('leave_requests').update(payload).eq('id', id);
         if (error) throw error;
@@ -131,21 +203,31 @@ export function RequestForm() {
         if (error) throw error;
         currentRequestId = insertData.id;
       }
+
       if (file && currentRequestId) {
         const attachmentUrl = await uploadFile(currentRequestId);
         if (attachmentUrl) {
-          await supabase.from('leave_requests').update({ attachment_url: attachmentUrl }).eq('id', currentRequestId);
+          const { error } = await supabase
+            .from('leave_requests')
+            .update({ attachment_url: attachmentUrl })
+            .eq('id', currentRequestId);
+          if (error) throw error;
         }
       }
+
+      showToast({
+        variant: 'success',
+        message: status === 'draft' ? '下書きを保存しました。' : '休暇申請を送信しました。',
+      });
       navigate('/requests');
-    } catch (err: any) {
-      setErrorMsg(err.message || '保存中にエラーが発生しました。');
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, '保存中にエラーが発生しました。');
+      setErrorMsg(message);
+      showToast({ variant: 'error', message });
     } finally {
       setLoading(false);
     }
   };
-
-  const isReadonly = isEdit && request?.status !== 'draft' && request?.status !== 'submitted';
 
   return (
     <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 text-black">
@@ -157,39 +239,56 @@ export function RequestForm() {
           {isEdit ? (isReadonly ? '休暇申請の詳細' : '休暇申請の編集') : '新規休暇申請'}
         </h1>
       </div>
+
       <Card className="border-none shadow-xl shadow-slate-200/50 rounded-[2rem] overflow-hidden bg-white">
         <CardContent className="p-8">
           {errorMsg && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm font-semibold animate-in shake duration-300">
+            <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl text-sm font-semibold">
               {errorMsg}
             </div>
           )}
+
           <form className="space-y-6">
             <div>
               <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">休暇の種類</label>
-              <select {...register('type')} disabled={isReadonly} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50">
+              <select
+                {...register('type')}
+                disabled={isReadonly}
+                className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50"
+              >
                 <option value="paid_leave">年次有給休暇</option>
                 <option value="sick">病気休暇</option>
                 <option value="special">特別休暇</option>
                 <option value="unpaid">無給休暇</option>
               </select>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Input label="開始日" type="date" disabled={isReadonly} className="rounded-2xl py-3" {...register('start_date', { required: true })} />
               <Input label="終了日" type="date" disabled={isHalfDay || isReadonly} className="rounded-2xl py-3" {...register('end_date', { required: true })} />
             </div>
-            
+
             <div className="bg-indigo-50/50 rounded-2xl p-4 flex items-center justify-between border border-indigo-100">
               <div className="flex items-center text-indigo-700 text-sm font-bold">
                 <Info className="w-4 h-4 mr-2" />
                 {isHalfDay ? '申請内容 (半休)' : '申請日数 (土日・祝日を除く)'}
               </div>
-              <div className="text-2xl font-black text-indigo-600">{calculatedDays} <span className="text-sm font-bold">日</span></div>
+              <div className="text-2xl font-black text-indigo-600">
+                {calculatedDays} <span className="text-sm font-bold">日</span>
+              </div>
             </div>
 
             <div className="flex items-center space-x-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <input type="checkbox" id="is_half_day" disabled={isReadonly} {...register('is_half_day')} className="h-5 w-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer" />
-              <label htmlFor="is_half_day" className="text-sm font-bold text-slate-700 cursor-pointer select-none">半休 (0.5日) を使用する</label>
+              <input
+                type="checkbox"
+                id="is_half_day"
+                disabled={isReadonly}
+                {...register('is_half_day')}
+                className="h-5 w-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 transition-all cursor-pointer"
+              />
+              <label htmlFor="is_half_day" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                半休 (0.5日) を使用する
+              </label>
             </div>
 
             {isHalfDay && (
@@ -201,8 +300,8 @@ export function RequestForm() {
                     disabled={isReadonly}
                     onClick={() => setValue('half_day_type', 'AM')}
                     className={`flex flex-col items-center justify-center p-4 rounded-[1.5rem] border-2 transition-all duration-200 ${
-                      halfDayType === 'AM' 
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                      halfDayType === 'AM'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
                         : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200 hover:text-indigo-600'
                     }`}
                   >
@@ -214,8 +313,8 @@ export function RequestForm() {
                     disabled={isReadonly}
                     onClick={() => setValue('half_day_type', 'PM')}
                     className={`flex flex-col items-center justify-center p-4 rounded-[1.5rem] border-2 transition-all duration-200 ${
-                      halfDayType === 'PM' 
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200' 
+                      halfDayType === 'PM'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
                         : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-200 hover:text-indigo-600'
                     }`}
                   >
@@ -229,7 +328,13 @@ export function RequestForm() {
 
             <div>
               <label className="block text-sm font-bold text-slate-700 ml-1 mb-2">理由</label>
-              <textarea {...register('reason')} disabled={isReadonly} rows={4} className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50" placeholder="休暇의 사유를 입력해주세요..." />
+              <textarea
+                {...register('reason')}
+                disabled={isReadonly}
+                rows={4}
+                className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:bg-slate-50"
+                placeholder="休暇の理由を入力してください。"
+              />
             </div>
 
             <div>
@@ -243,7 +348,9 @@ export function RequestForm() {
                         <span className="text-sm font-bold text-slate-900 truncate max-w-[200px]">{file.name}</span>
                         <span className="text-[10px] text-slate-400">{(file.size / 1024).toFixed(1)} KB</span>
                       </div>
-                      <button type="button" onClick={() => setFile(null)} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+                      <button type="button" onClick={() => setFile(null)} className="p-1.5 hover:bg-red-50 text-red-400 hover:text-red-600 rounded-lg transition-colors">
+                        <X className="w-5 h-5" />
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-1 text-center">
@@ -251,7 +358,22 @@ export function RequestForm() {
                       <div className="flex text-sm text-slate-600">
                         <label htmlFor="file-upload" className="relative cursor-pointer bg-transparent rounded-md font-bold text-indigo-600 hover:text-indigo-500 focus-within:outline-none">
                           <span>ファイルをアップロード</span>
-                          <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                          <input
+                            id="file-upload"
+                            name="file-upload"
+                            type="file"
+                            accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                            className="sr-only"
+                            onChange={(event) => {
+                              const selectedFile = event.target.files?.[0] || null;
+                              const validationMessage = validateAttachment(selectedFile);
+                              setFile(selectedFile);
+                              setErrorMsg(validationMessage ?? '');
+                              if (validationMessage) {
+                                showToast({ variant: 'error', message: validationMessage });
+                              }
+                            }}
+                          />
                         </label>
                         <p className="pl-1 font-medium text-slate-400">またはドラッグ＆ドロップ</p>
                       </div>
@@ -259,34 +381,46 @@ export function RequestForm() {
                     </div>
                   )}
                 </div>
+              ) : request?.attachment_url ? (
+                <a href={request.attachment_url} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-3 bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <FileIcon className="w-6 h-6" />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-900 tracking-tight">添付ファイルを表示</span>
+                    <span className="text-xs text-slate-400 font-medium italic">別タブで開きます</span>
+                  </div>
+                </a>
               ) : (
-                request?.attachment_url ? (
-                  <a href={request.attachment_url} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-3 bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30 transition-all group">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors"><FileIcon className="w-6 h-6" /></div>
-                    <div className="flex flex-col"><span className="text-sm font-bold text-slate-900 tracking-tight">添付ファイルを表示</span><span className="text-xs text-slate-400 font-medium italic">別タブで開きます</span></div>
-                  </a>
-                ) : (
-                  <div className="text-sm text-slate-400 font-medium italic ml-1">添付ファイルはありません。</div>
-                )
+                <div className="text-sm text-slate-400 font-medium italic ml-1">添付ファイルはありません。</div>
               )}
             </div>
+
             {isReadonly && request?.manager_comment && (
               <div className="p-5 bg-amber-50 border border-amber-100 rounded-2xl">
                 <span className="text-xs font-black text-amber-600 uppercase tracking-widest">管理者コメント</span>
                 <p className="text-sm text-amber-900 mt-2 font-medium leading-relaxed">{request.manager_comment}</p>
               </div>
             )}
-            {!isReadonly && (
+
+            {!isReadonly ? (
               <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-slate-100">
-                <Button type="button" variant="outline" onClick={() => navigate('/requests')} disabled={loading} className="rounded-2xl order-3 sm:order-1">キャンセル</Button>
-                <div className="hidden sm:block flex-1 order-2"></div>
-                <Button type="button" variant="secondary" onClick={handleSubmit((data) => onSubmit(data, 'draft'))} disabled={loading} className="rounded-2xl order-1 sm:order-3">下書き保存</Button>
-                <Button type="button" variant="primary" onClick={handleSubmit((data) => onSubmit(data, 'submitted'))} disabled={loading} className="rounded-2xl order-2 sm:order-4 shadow-lg shadow-indigo-200">申請する</Button>
+                <Button type="button" variant="outline" onClick={() => navigate('/requests')} disabled={loading} className="rounded-2xl order-3 sm:order-1">
+                  キャンセル
+                </Button>
+                <div className="hidden sm:block flex-1 order-2" />
+                <Button type="button" variant="secondary" onClick={handleSubmit((data) => onSubmit(data, 'draft'))} disabled={loading} className="rounded-2xl order-1 sm:order-3">
+                  下書き保存
+                </Button>
+                <Button type="button" variant="primary" onClick={handleSubmit((data) => onSubmit(data, 'submitted'))} disabled={loading} className="rounded-2xl order-2 sm:order-4 shadow-lg shadow-indigo-200">
+                  申請する
+                </Button>
               </div>
-            )}
-            {isReadonly && (
+            ) : (
               <div className="pt-6 border-t border-slate-100">
-                <Button type="button" variant="outline" className="rounded-2xl w-full sm:w-auto" onClick={() => navigate('/requests')}>一覧に戻る</Button>
+                <Button type="button" variant="outline" className="rounded-2xl w-full sm:w-auto" onClick={() => navigate('/requests')}>
+                  一覧に戻る
+                </Button>
               </div>
             )}
           </form>

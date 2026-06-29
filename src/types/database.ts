@@ -61,6 +61,18 @@ export interface Notification {
   created_at: string;
 }
 
+export interface LunchRecord {
+  id: string;
+  user_id: string;
+  meal_date: string;
+  has_bento: boolean;
+  has_rice: boolean;
+  cost: number;
+  created_at: string;
+  updated_at: string;
+  profiles?: Profile;
+}
+
 export interface LeaveBalanceView {
   user_id: string;
   granted_sum: number;

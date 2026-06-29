@@ -1,7 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// HTML Escape 함수: 보안을 위해 사용자 입력을 이스케이프 처리합니다.
+const jsonHeaders = { "Content-Type": "application/json" };
+
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: jsonHeaders,
+  });
+
+const logInfo = (message: string, context: Record<string, unknown> = {}) => {
+  console.info(JSON.stringify({ level: "info", message, ...context }));
+};
+
+const logError = (message: string, context: Record<string, unknown> = {}) => {
+  console.error(JSON.stringify({ level: "error", message, ...context }));
+};
+
+const getErrorName = (error: unknown) => error instanceof Error ? error.name : "UnknownError";
+
+// Escape user-controlled content before rendering it in the email template.
 const escapeHtml = (unsafe: string) => {
   return unsafe
     .replace(/&/g, "&amp;")
@@ -13,7 +31,6 @@ const escapeHtml = (unsafe: string) => {
 
 serve(async (req) => {
   try {
-    // 1. 필수 환경 변수 확인
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
@@ -24,49 +41,32 @@ serve(async (req) => {
       throw new Error("Missing required environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY)");
     }
 
-    // 2. Webhook Secret 인증 (X-Webhook-Secret 헤더 사용)
-    // Supabase Webhook은 자체 Authorization 헤더를 주입하므로 커스텀 헤더를 사용해야 합니다.
     const expected = Deno.env.get("WEBHOOK_SECRET") ?? "";
     const webhookSecret = req.headers.get("x-webhook-secret") ?? "";
 
     if (!expected || webhookSecret !== expected) {
-      console.error("Unauthorized access attempt.", {
+      logError("Unauthorized webhook request", {
         received: webhookSecret ? "PRESENT (hidden)" : "MISSING",
-        expected: expected ? "SET (hidden)" : "NOT SET"
+        expected: expected ? "SET (hidden)" : "NOT SET",
       });
 
-      return new Response(
-        JSON.stringify({ code: 401, message: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
+      return jsonResponse({ code: 401, message: "Unauthorized" }, 401);
     }
 
-    // 3. Payload 파싱 및 유효성 검사
     const payload = await req.json();
     const { type, table, record } = payload;
 
-    // notifications 테이블의 INSERT 이벤트인 경우만 처리
     if (type !== "INSERT" || table !== "notifications") {
-      return new Response(JSON.stringify({ message: "Ignored: Only processing INSERT on notifications" }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ message: "Ignored: Only processing INSERT on notifications" });
     }
 
     const { id, user_id, title, body, url, is_email_sent } = record;
 
     // Idempotency check: if email already sent, ignore
     if (is_email_sent) {
-      return new Response(JSON.stringify({ message: "Email already sent, skipping." }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ message: "Email already sent, skipping." });
     }
 
-    // 4. Supabase Admin Client를 사용하여 유저 이메일 조회 (service_role 사용)
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -75,18 +75,17 @@ serve(async (req) => {
       .single();
 
     if (profileError || !profile?.email) {
-      console.warn(`User ${user_id} email not found or lookup failed:`, profileError);
-      return new Response(JSON.stringify({ message: "No email found, skipping." }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
+      logInfo("Notification email skipped because recipient email was not found", {
+        notificationId: id,
+        errorName: getErrorName(profileError),
       });
+      return jsonResponse({ message: "No email found, skipping." });
     }
 
-    // 5. 이메일 템플릿 구성
     const actionUrl = url ? `${APP_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}` : APP_BASE_URL;
-    const escapedTitle = escapeHtml(title || "새 알림");
+    const escapedTitle = escapeHtml(title || "通知が届いています");
     const escapedBody = escapeHtml(body || "");
-    const userName = profile.display_name || "User";
+    const userName = escapeHtml(profile.display_name || "ユーザー");
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -112,21 +111,20 @@ serve(async (req) => {
           </div>
           <div class="content">
             <div class="title">${escapedTitle}</div>
-            <p>안녕하세요 ${userName}님,</p>
+            <p>${userName}さん、通知が届いています。</p>
             <div class="body">${escapedBody}</div>
             <div style="text-align: center;">
-              <a href="${actionUrl}" class="button">View Details</a>
+              <a href="${actionUrl}" class="button">詳細を確認する</a>
             </div>
           </div>
           <div class="footer">
-            &copy; 2026 Tamaji WorkFlow. This is an automated message.
+            &copy; 2026 Tamaji WorkFlow. このメールは自動送信されています。
           </div>
         </div>
       </body>
       </html>
     `;
 
-    // 6. Resend API로 발송
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -142,39 +140,33 @@ serve(async (req) => {
     });
 
     if (!res.ok) {
-      const errorText = await res.text();
-      console.error("Resend error:", errorText);
-      return new Response(JSON.stringify({ error: "Resend failed" }), { status: 500 });
+      logError("Resend email request failed", {
+        notificationId: id,
+        status: res.status,
+      });
+      return jsonResponse({ error: "Email delivery failed" }, 500);
     }
 
-    // 7. Update notification record: is_email_sent = true, sent_at = now()
     await supabaseAdmin
       .from("notifications")
       .update({ is_email_sent: true, sent_at: new Date().toISOString() })
       .eq("id", id);
 
-    console.log(`Email sent successfully to ${profile.email} and record updated.`);
-    return new Response(JSON.stringify({ message: "Success" }), { status: 200 });
+    logInfo("Notification email sent", { notificationId: id });
+    return jsonResponse({ message: "Success" });
 
   } catch (error) {
-    console.error("Function error:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    logError("Notification email function failed", { errorName: getErrorName(error) });
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 });
 
 /**
- * [배포 및 설정 가이드]
- * 
- * 1. Supabase Secrets 설정:
- *    npx supabase secrets set WEBHOOK_SECRET="tamaji_webhook_secret_2026"
+ * Deployment:
+ * 1. Set secrets:
+ *    npx supabase secrets set WEBHOOK_SECRET="..."
  *    npx supabase secrets set RESEND_API_KEY="re_..."
- * 
- * 2. Database Webhook (HTTP Request) 설정:
- *    - URL: https://<PROJECT_REF>.functions.supabase.co/send-notification-email
- *    - HTTP Header:
- *        Key: X-Webhook-Secret
- *        Value: tamaji_webhook_secret_2026
- * 
- * 3. 배포:
+ * 2. Configure a database webhook with X-Webhook-Secret.
+ * 3. Deploy:
  *    npx supabase functions deploy send-notification-email
  */

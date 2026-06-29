@@ -44,8 +44,7 @@ export function calculateBusinessDays(
     });
 
     return businessDays.length;
-  } catch (e) {
-    console.error("Error calculating business days:", e);
+  } catch {
     return 0;
   }
 }

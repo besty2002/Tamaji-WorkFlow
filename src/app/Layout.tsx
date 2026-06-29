@@ -1,9 +1,9 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../features/auth/AuthContext';
+import { useAuth } from '../features/auth/useAuth';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, Bell, type LucideIcon } from 'lucide-react';
+import { LogOut, Calendar, Users, ClipboardList, Menu, X, User, Bell, Utensils, type LucideIcon } from 'lucide-react';
 import { NotificationBell } from '../components/ui/NotificationBell';
 
 interface NavItem {
@@ -43,12 +43,13 @@ export function Layout() {
   const navItems: NavItem[] = [
     { label: 'ダッシュボード', path: '/', icon: Calendar },
     { label: '休暇カレンダー', path: '/calendar', icon: Calendar },
+    { label: 'ランチ管理', path: '/lunch', icon: Utensils },
     { label: '申請一覧', path: '/requests', icon: ClipboardList },
   ];
 
   if (profile?.role === 'manager' || profile?.role === 'admin') {
     navItems.push({ 
-      label: '申請管理', 
+      label: '申請管理',
       path: '/manage', 
       icon: Users,
       badge: pendingCount > 0 ? pendingCount : undefined

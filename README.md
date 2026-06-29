@@ -15,7 +15,7 @@ A React + TypeScript application for managing employee leave requests, built wit
    ```
 
 2. Setup Environment Variables:
-   Copy `.env.example` to `.env.local` and add your Supabase credentials.
+   Copy `.env.example` to `.env.local` and add your Supabase credentials. The app cannot log in locally without these values.
    ```bash
    VITE_SUPABASE_URL=your_project_url
    VITE_SUPABASE_ANON_KEY=your_anon_key
@@ -31,8 +31,12 @@ A React + TypeScript application for managing employee leave requests, built wit
 You must run the SQL scripts in the `supabase/` folder in your Supabase project's SQL Editor to set up the database. **Run them in this exact order:**
 
 1. `supabase/schema.sql` - Creates tables, views, and auth trigger.
-2. `supabase/rls.sql` - Sets up Row Level Security policies.
-3. `supabase/seed.sql` - Provides instructions for adding initial data.
+2. `supabase/notifications.sql` - Creates the notifications table and leave-request notification trigger.
+3. `supabase/rls.sql` - Sets up Row Level Security policies.
+4. `supabase/seed.sql` - Provides instructions for adding initial data.
+
+**Storage setup for attachments:**
+Create a Supabase Storage bucket named `attachments`. The leave request form uploads supporting files, such as medical certificates, to this bucket.
 
 **Creating an Admin User:**
 1. Sign up for a new account via the app's `/login` page.
