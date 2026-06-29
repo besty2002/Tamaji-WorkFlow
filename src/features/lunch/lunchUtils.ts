@@ -10,6 +10,10 @@ export interface LunchSummaryRecord {
   has_bento: boolean;
   has_rice: boolean;
   cost: number;
+  profiles?: {
+    display_name: string | null;
+    email: string;
+  } | null;
 }
 
 export interface LunchSummary {
@@ -17,6 +21,14 @@ export interface LunchSummary {
   riceCount: number;
   freeCount: number;
   totalCost: number;
+}
+
+export interface LunchUserSummary extends LunchSummary {
+  userId: string;
+  displayName: string;
+  email: string;
+  paidCount: number;
+  records: LunchSummaryRecord[];
 }
 
 function toDateOnly(value: Date) {
@@ -60,4 +72,62 @@ export function summarizeLunchRecords(records: LunchSummaryRecord[]): LunchSumma
       totalCost: 0,
     },
   );
+}
+
+function getProfileEmail(record: LunchSummaryRecord) {
+  return record.profiles?.email ?? '';
+}
+
+function getProfileName(record: LunchSummaryRecord) {
+  return record.profiles?.display_name || getProfileEmail(record).split('@')[0] || 'ユーザー';
+}
+
+function ateLunch(record: LunchSummaryRecord) {
+  return record.has_bento || record.has_rice;
+}
+
+export function summarizeLunchRecordsByUser(records: LunchSummaryRecord[]): LunchUserSummary[] {
+  const grouped = new Map<string, LunchSummaryRecord[]>();
+
+  for (const record of records) {
+    grouped.set(record.user_id, [...(grouped.get(record.user_id) ?? []), record]);
+  }
+
+  return [...grouped.entries()]
+    .map(([userId, userRecords]) => {
+      const sortedRecords = [...userRecords].sort((a, b) => a.meal_date.localeCompare(b.meal_date));
+      const base = summarizeLunchRecords(sortedRecords);
+
+      return {
+        userId,
+        displayName: getProfileName(sortedRecords[0]),
+        email: getProfileEmail(sortedRecords[0]),
+        ...base,
+        paidCount: sortedRecords.filter((record) => ateLunch(record) && record.cost > 0).length,
+        records: sortedRecords,
+      };
+    })
+    .sort((a, b) => b.totalCost - a.totalCost || a.displayName.localeCompare(b.displayName, 'ja'));
+}
+
+function escapeCsvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+export function createLunchSettlementCsv(summaries: LunchUserSummary[]) {
+  const rows = [
+    ['社員名', 'メール', '弁当数', 'チンご飯数', '無料日利用数', '有料日利用数', '請求額'],
+    ...summaries.map((summary) => [
+      summary.displayName,
+      summary.email,
+      summary.bentoCount,
+      summary.riceCount,
+      summary.freeCount,
+      summary.paidCount,
+      summary.totalCost,
+    ]),
+  ];
+
+  return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
 }
