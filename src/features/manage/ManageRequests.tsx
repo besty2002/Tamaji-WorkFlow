@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthContext';
+﻿import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../auth/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import type { LeaveRequest } from '../../types/database';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { LoadingSpinner, ErrorState, EmptyState } from '../../components/ui/States';
 import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
-import { ClipboardList, CheckCircle2, XCircle, Paperclip } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Paperclip, XCircle } from 'lucide-react';
+import { getErrorMessage } from '../../lib/errors';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { useToast } from '../../components/ui/useToast';
 
 const typeLabels: Record<string, string> = {
   paid_leave: '年次有給休暇',
   sick: '病気休暇',
   special: '特別休暇',
-  unpaid: '無給休暇'
+  unpaid: '無給休暇',
 };
 
 const statusLabels: Record<string, string> = {
@@ -20,84 +22,86 @@ const statusLabels: Record<string, string> = {
   submitted: '申請中',
   approved: '承認済み',
   rejected: '却下',
-  cancelled: 'キャンセル'
+  cancelled: 'キャンセル済み',
 };
 
 export function ManageRequests() {
   const { user, profile } = useAuth();
+  const { showToast } = useToast();
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('submitted');
+  const [actionDialog, setActionDialog] = useState<{
+    id: string;
+    status: 'approved' | 'rejected';
+    comment: string;
+  } | null>(null);
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       setLoading(true);
       let query = supabase
         .from('leave_requests')
-        .select(`
-          *,
-          profiles:user_id (
-            id,
-            display_name,
-            email
-          )
-        `)
+        .select(`*, profiles:user_id (id, display_name, email)`)
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
-      }
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
 
       const { data, error } = await query;
       if (error) throw error;
       setRequests(data as LeaveRequest[]);
-    } catch (err: any) {
-      setError(err.message);
+      setError('');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '申請データの取得中にエラーが発生しました。'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter]);
 
   useEffect(() => {
     fetchRequests();
-    
-    const channel = supabase.channel('public:leave_requests')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, () => {
-        fetchRequests();
-      })
+    const channel = supabase
+      .channel('public:leave_requests')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, fetchRequests)
       .subscribe();
-
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [statusFilter]);
+  }, [fetchRequests]);
 
   const handleAction = async (id: string, newStatus: 'approved' | 'rejected') => {
-    const actionName = newStatus === 'approved' ? '承認' : '却下';
-    const comment = prompt(`この申請を${actionName}する理由を入力してください:` + (newStatus === 'rejected' ? ' (必須)' : ' (任意)'));
-    
-    if (newStatus === 'rejected' && !comment) {
-      alert('却下する場合は理由を入力してください。');
+    setActionDialog({ id, status: newStatus, comment: '' });
+  };
+
+  const submitAction = async () => {
+    if (!actionDialog) return;
+
+    const comment = actionDialog.comment.trim();
+    if (actionDialog.status === 'rejected' && !comment) {
+      showToast({ variant: 'error', message: '却下する場合は理由を入力してください。' });
       return;
     }
-    if (comment === null) return;
 
     try {
       const { error } = await supabase
         .from('leave_requests')
         .update({
-          status: newStatus,
+          status: actionDialog.status,
           manager_comment: comment || null,
           decided_by: user?.id,
           decided_at: new Date().toISOString(),
         })
-        .eq('id', id);
-
+        .eq('id', actionDialog.id);
       if (error) throw error;
       fetchRequests();
-    } catch (err: any) {
-      alert('更新中にエラーが発生しました: ' + err.message);
+      showToast({
+        variant: 'success',
+        message: actionDialog.status === 'approved' ? '申請を承認しました。' : '申請を却下しました。',
+      });
+      setActionDialog(null);
+    } catch (err: unknown) {
+      showToast({ variant: 'error', message: `更新中にエラーが発生しました: ${getErrorMessage(err)}` });
     }
   };
 
@@ -114,10 +118,10 @@ export function ManageRequests() {
 
       <Card className="border-none shadow-2xl shadow-slate-200/60 rounded-[2rem] overflow-hidden bg-white">
         <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50/30 p-6 md:p-8">
-          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">すべての申請</span>
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)}
+          <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">申請一覧</span>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
             className="w-full sm:w-auto bg-white border-slate-200 rounded-xl py-2.5 px-4 text-sm font-bold focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all outline-none shadow-sm"
           >
             <option value="submitted">承認待ち (申請中)</option>
@@ -132,177 +136,92 @@ export function ManageRequests() {
           ) : error ? (
             <ErrorState message={error} />
           ) : requests.length > 0 ? (
-            <>
-              {/* Desktop View: Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-100">
-                  <thead className="bg-slate-50/30">
-                    <tr>
-                      <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">申請者</th>
-                      <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日付</th>
-                      <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日数</th>
-                      <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">理由</th>
-                      <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">ステータス</th>
-                      <th className="px-8 py-4 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-slate-50">
-                    {requests.map((req) => (
-                      <tr key={req.id} className="hover:bg-indigo-50/10 transition-all duration-200 group">
-                        <td className="px-8 py-5">
-                          <div className="flex flex-col">
-                            <div className="text-sm font-bold text-slate-900 flex items-center">
-                              {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
-                              {req.user_id === user?.id && (
-                                <span className="ml-2 px-1.5 py-0.5 bg-indigo-50 text-indigo-500 text-[8px] font-black rounded uppercase tracking-tighter border border-indigo-100">本人</span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-medium">{req.profiles?.email}</div>
-                          </div>
-                        </td>
-                        <td className="px-8 py-5">
-                          <div className="text-sm font-bold text-slate-900">
-                            {format(new Date(req.start_date), 'yyyy/MM/dd', { locale: ja })}
-                            {req.start_date !== req.end_date && ` 〜`}
-                          </div>
-                          <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">{typeLabels[req.type]}</div>
-                        </td>
-                        <td className="px-8 py-5 text-sm font-black text-indigo-600">
-                          {req.num_days || (req.is_half_day ? 0.5 : '-')} <span className="text-[10px] font-bold text-slate-400">日</span>
-                        </td>
-                        <td className="px-8 py-5 text-xs font-medium text-slate-500 max-w-xs" title={req.reason || ''}>
-                          <div className="flex items-center space-x-2">
-                            {req.attachment_url && (
-                              <a href={req.attachment_url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="添付ファイルを表示">
-                                <Paperclip className="w-3.5 h-3.5" />
-                              </a>
-                            )}
-                            <span className="truncate">{req.reason || '-'}</span>
-                          </div>
-                        </td>
-                        <td className="px-8 py-5">
-                          <span className={`px-3 py-1.5 text-[10px] font-black rounded-xl uppercase tracking-wider border
-                            ${req.status === 'approved' ? 'bg-green-50 text-green-700 border-green-100' : 
-                              req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 
-                              req.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
-                              'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                            {statusLabels[req.status]}
-                          </span>
-                        </td>
-                        <td className="px-8 py-5 text-right">
-                          {req.status === 'submitted' && (
-                            <div className="flex items-center justify-end space-x-1">
-                              <button 
-                                onClick={() => handleAction(req.id, 'approved')} 
-                                className="p-2.5 text-green-500 hover:bg-green-50 rounded-xl transition-all"
-                                title="承認"
-                              >
-                                <CheckCircle2 className="w-5 h-5" />
-                              </button>
-                              <button 
-                                onClick={() => handleAction(req.id, 'rejected')} 
-                                className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                title="却下"
-                              >
-                                <XCircle className="w-5 h-5" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile View: Cards */}
-              <div className="md:hidden divide-y divide-slate-50">
-                {requests.map((req) => (
-                  <div key={req.id} className="p-5 hover:bg-indigo-50/5 transition-colors">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex flex-col">
-                        <div className="flex items-center mb-0.5">
-                          <span className="text-[10px] font-black text-indigo-500 uppercase tracking-tighter">
-                            {req.profiles?.display_name || req.profiles?.email?.split('@')[0]}
-                          </span>
-                          {req.user_id === user?.id && (
-                            <span className="ml-1.5 px-1 py-0 bg-indigo-50 text-indigo-500 text-[7px] font-black rounded uppercase border border-indigo-100">本人</span>
-                          )}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-slate-100">
+                <thead className="bg-slate-50/30">
+                  <tr>
+                    <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">申請者</th>
+                    <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日付</th>
+                    <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">日数</th>
+                    <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">理由</th>
+                    <th className="px-8 py-4 text-left text-[11px] font-black text-slate-400 uppercase tracking-widest">ステータス</th>
+                    <th className="px-8 py-4 text-right text-[11px] font-black text-slate-400 uppercase tracking-widest">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-50">
+                  {requests.map((req) => (
+                    <tr key={req.id} className="hover:bg-indigo-50/10 transition-all duration-200">
+                      <td className="px-8 py-5">
+                        <div className="text-sm font-bold text-slate-900">{req.profiles?.display_name || req.profiles?.email?.split('@')[0]}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">{req.profiles?.email}</div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <div className="text-sm font-bold text-slate-900">
+                          {format(new Date(req.start_date), 'yyyy年 M月 d日')}
+                          {req.start_date !== req.end_date && ` 〜 ${format(new Date(req.end_date), 'yyyy年 M月 d日')}`}
                         </div>
-                        <span className="text-base font-black text-slate-900 leading-tight">
-                          {format(new Date(req.start_date), 'MM月dd日', { locale: ja })}
-                          {req.start_date !== req.end_date && ` 〜 ${format(new Date(req.end_date), 'MM月dd日', { locale: ja })}`}
+                        <div className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">{typeLabels[req.type]}</div>
+                      </td>
+                      <td className="px-8 py-5 text-sm font-black text-indigo-600">{req.num_days || (req.is_half_day ? 0.5 : '-')} 日</td>
+                      <td className="px-8 py-5 text-xs font-medium text-slate-500 max-w-xs">
+                        <div className="flex items-center space-x-2">
+                          {req.attachment_url && (
+                            <a href={req.attachment_url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm" title="添付ファイルを表示">
+                              <Paperclip className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                          <span className="truncate">{req.reason || '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-5">
+                        <span className="px-3 py-1.5 text-[10px] font-black rounded-xl uppercase tracking-wider border bg-slate-50 text-slate-600 border-slate-100">
+                          {statusLabels[req.status]}
                         </span>
-                        <div className="flex items-center mt-1 space-x-2">
-                          <span className="text-xs font-bold text-slate-400">
-                            {typeLabels[req.type]}
-                          </span>
-                          {req.is_half_day && (
-                            <span className="text-[9px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-lg border border-amber-100 font-black uppercase">
-                              半休
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider border
-                        ${req.status === 'approved' ? 'bg-green-50 text-green-700 border-green-100' : 
-                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border-red-100' : 
-                          req.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-100' : 
-                          'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                        {statusLabels[req.status]}
-                      </span>
-                    </div>
-
-                    {req.reason && (
-                      <div className="bg-slate-50/50 rounded-xl p-3 my-3">
-                        <p className="text-xs font-medium text-slate-600 line-clamp-2 italic">
-                          &quot;{req.reason}&quot;
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-50">
-                      <div className="flex items-center space-x-3">
-                        <div className="text-sm font-black text-indigo-600">
-                          {req.num_days || (req.is_half_day ? 0.5 : '-')} <span className="text-[10px] font-bold text-slate-400 uppercase">DAYS</span>
-                        </div>
-                        {req.attachment_url && (
-                          <a href={req.attachment_url} target="_blank" rel="noopener noreferrer" className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg shadow-sm">
-                            <Paperclip className="w-3.5 h-3.5" />
-                          </a>
+                      </td>
+                      <td className="px-8 py-5 text-right">
+                        {req.status === 'submitted' && (
+                          <div className="flex items-center justify-end space-x-1">
+                            <button onClick={() => handleAction(req.id, 'approved')} className="p-2.5 text-green-500 hover:bg-green-50 rounded-xl transition-all" title="承認">
+                              <CheckCircle2 className="w-5 h-5" />
+                            </button>
+                            <button onClick={() => handleAction(req.id, 'rejected')} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all" title="却下">
+                              <XCircle className="w-5 h-5" />
+                            </button>
+                          </div>
                         )}
-                      </div>
-                      
-                      {req.status === 'submitted' && (
-                        <div className="flex space-x-2">
-                          <button 
-                            onClick={() => handleAction(req.id, 'approved')} 
-                            className="flex items-center space-x-1.5 px-3 py-1.5 bg-green-50 text-green-600 rounded-xl text-[10px] font-black uppercase tracking-wider border border-green-100 active:scale-95 transition-all"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>承認</span>
-                          </button>
-                          <button 
-                            onClick={() => handleAction(req.id, 'rejected')} 
-                            className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-50 text-red-600 rounded-xl text-[10px] font-black uppercase tracking-wider border border-red-100 active:scale-95 transition-all"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>却下</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="py-24 flex flex-col items-center">
-              <EmptyState message={`${statusFilter === 'all' ? '' : statusLabels[statusFilter]}の申請が見つかりませんでした。`} />
+              <EmptyState message="該当する申請はありません。" />
             </div>
           )}
         </CardContent>
       </Card>
+      <ConfirmDialog
+        open={!!actionDialog}
+        title={actionDialog?.status === 'approved' ? '申請を承認しますか？' : '申請を却下しますか？'}
+        message={actionDialog?.status === 'approved' ? '承認理由は任意で入力できます。' : '却下する場合は理由の入力が必要です。'}
+        confirmLabel={actionDialog?.status === 'approved' ? '承認する' : '却下する'}
+        tone={actionDialog?.status === 'rejected' ? 'danger' : 'default'}
+        onCancel={() => setActionDialog(null)}
+        onConfirm={submitAction}
+      >
+        <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+          理由
+        </label>
+        <textarea
+          value={actionDialog?.comment ?? ''}
+          onChange={(event) => setActionDialog((current) => current ? { ...current, comment: event.target.value } : current)}
+          className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none transition-all focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+          rows={4}
+          placeholder={actionDialog?.status === 'approved' ? '必要に応じて承認理由を入力してください。' : '却下理由を入力してください。'}
+        />
+      </ConfirmDialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -12,15 +12,19 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, ...props }, ref) => {
+  ({ className, label, error, id, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+
     return (
       <div className="w-full space-y-1.5">
         {label && (
-          <label className="block text-sm font-semibold text-slate-700 ml-1">
+          <label htmlFor={inputId} className="block text-sm font-semibold text-slate-700 ml-1">
             {label}
           </label>
         )}
         <input
+          id={inputId}
           ref={ref}
           className={cn(
             'block w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm transition-all duration-200 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-50',

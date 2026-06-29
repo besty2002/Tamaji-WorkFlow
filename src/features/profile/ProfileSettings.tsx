@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../auth/AuthContext';
+﻿import { useState, useEffect } from 'react';
+import { useAuth } from '../auth/useAuth';
 import { supabase } from '../../lib/supabaseClient';
 import { Card, CardContent, CardHeader } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useQueryClient } from '@tanstack/react-query';
+import { getErrorMessage } from '../../lib/errors';
+import { useToast } from '../../components/ui/useToast';
 
 export function ProfileSettings() {
   const { user, profile, refreshProfile } = useAuth();
+  const { showToast } = useToast();
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -24,7 +26,6 @@ export function ProfileSettings() {
     if (!user) return;
 
     setLoading(true);
-    setMessage(null);
 
     try {
       const { error } = await supabase
@@ -36,7 +37,7 @@ export function ProfileSettings() {
 
       if (error) throw error;
 
-      setMessage({ type: 'success', text: 'プロフィールを更新しました。' });
+      showToast({ variant: 'success', message: 'プロフィールを更新しました。' });
       
       // Invalidate queries to refresh data across the app
       queryClient.invalidateQueries({ queryKey: ['leaveBalance'] });
@@ -45,8 +46,8 @@ export function ProfileSettings() {
       // Manually trigger a refresh in context just in case real-time is slow
       await refreshProfile();
       
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || '更新中にエラーが発生しました。' });
+    } catch (err: unknown) {
+      showToast({ variant: 'error', message: getErrorMessage(err, '更新中にエラーが発生しました。') });
     } finally {
       setLoading(false);
     }
@@ -59,14 +60,6 @@ export function ProfileSettings() {
       <Card>
         <CardHeader>基本情報</CardHeader>
         <CardContent>
-          {message && (
-            <div className={`p-3 mb-4 rounded text-sm ${
-              message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-            }`}>
-              {message.text}
-            </div>
-          )}
-
           <form onSubmit={handleUpdateProfile} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-500 mb-1">
@@ -79,11 +72,10 @@ export function ProfileSettings() {
             </div>
 
             <Input
-              label="表示名 (氏名)"
+              label="表示名"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="例：山田 太郎"
-              required
+              placeholder="例: 山田 太郎"
             />
 
             <div className="pt-4 border-t flex justify-end">

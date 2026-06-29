@@ -1,20 +1,22 @@
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../auth/AuthContext';
-import { Card } from '../../components/ui/Card';
-import { Button } from '../../components/ui/Button';
-import { Check, CheckCheck, Clock, Mail, BellOff, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { ArrowLeft, BellOff, Check, CheckCheck, Clock, Mail } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
+import { getErrorMessage } from '../../lib/errors';
+import { useAuth } from '../auth/useAuth';
+import { Card } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
+import { useToast } from '../../components/ui/useToast';
 import type { Notification } from '../../types/database';
 
 export function NotificationList() {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
 
-  // Fetch notifications
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', profile?.id],
     queryFn: async () => {
@@ -25,14 +27,13 @@ export function NotificationList() {
         .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
         .limit(50);
-      
+
       if (error) throw error;
       return data as Notification[];
     },
     enabled: !!profile,
   });
 
-  // Mutation to mark a single notification as read
   const markAsRead = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -45,9 +46,12 @@ export function NotificationList() {
       queryClient.invalidateQueries({ queryKey: ['notifications', profile?.id] });
       queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount', profile?.id] });
     },
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err, '既読への更新に失敗しました。');
+      showToast({ variant: 'error', message });
+    },
   });
 
-  // Mutation to mark all as read
   const markAllAsRead = useMutation({
     mutationFn: async () => {
       if (!profile) return;
@@ -62,23 +66,31 @@ export function NotificationList() {
       queryClient.invalidateQueries({ queryKey: ['notifications', profile?.id] });
       queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount', profile?.id] });
     },
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err, 'すべて既読にできませんでした。');
+      showToast({ variant: 'error', message });
+    },
   });
 
   const handleNotificationClick = async (notification: Notification) => {
     if (!notification.read_at) {
-      await markAsRead.mutateAsync(notification.id);
+      try {
+        await markAsRead.mutateAsync(notification.id);
+      } catch {
+        return;
+      }
     }
     if (notification.url) {
       navigate(notification.url);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.read_at).length;
+  const unreadCount = notifications.filter((notification) => !notification.read_at).length;
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
       </div>
     );
   }
@@ -137,9 +149,9 @@ export function NotificationList() {
               }`}
             >
               {!notification.read_at && (
-                <div className="absolute top-4 right-4 h-2 w-2 bg-indigo-600 rounded-full"></div>
+                <div className="absolute top-4 right-4 h-2 w-2 bg-indigo-600 rounded-full" />
               )}
-              
+
               <div className={`mt-1 flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
                 !notification.read_at ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-500'
               }`}>
@@ -166,7 +178,7 @@ export function NotificationList() {
                   {notification.is_email_sent && (
                     <span className="flex items-center text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">
                       <Mail className="w-3 h-3 mr-1" />
-                      EMAIL SENT
+                      メール送信済み
                     </span>
                   )}
                   {notification.read_at && (

@@ -1,16 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
-import { useAuth } from '../../features/auth/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '../../features/auth/useAuth';
 
 export function NotificationBell() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [hasNew, setHasNew] = useState(false);
 
-  // Fetch unread count
   const { data: unreadCount = 0 } = useQuery({
     queryKey: ['unreadNotificationsCount', profile?.id],
     queryFn: async () => {
@@ -20,7 +19,7 @@ export function NotificationBell() {
         .select('*', { count: 'exact', head: true })
         .eq('user_id', profile.id)
         .is('read_at', null);
-      
+
       if (error) throw error;
       return count || 0;
     },
@@ -30,7 +29,6 @@ export function NotificationBell() {
   useEffect(() => {
     if (!profile) return;
 
-    // Subscribe to realtime notifications
     const channel = supabase
       .channel(`user-notifications-${profile.id}`)
       .on(
@@ -42,12 +40,9 @@ export function NotificationBell() {
           filter: `user_id=eq.${profile.id}`,
         },
         () => {
-          // Invalidate query to refetch count
           queryClient.invalidateQueries({ queryKey: ['unreadNotificationsCount', profile.id] });
           setHasNew(true);
-          
-          // Reset "hasNew" animation after 3 seconds
-          setTimeout(() => setHasNew(false), 3000);
+          window.setTimeout(() => setHasNew(false), 3000);
         }
       )
       .subscribe();

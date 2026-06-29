@@ -7,6 +7,7 @@ create table if not exists public.profiles (
   email text not null,
   display_name text,
   role text check (role in ('employee', 'manager', 'admin')) default 'employee',
+  can_view_all_leaves boolean default false,
   created_at timestamptz default now()
 );
 
@@ -60,6 +61,24 @@ $$ language plpgsql;
 
 create trigger leave_requests_updated_at
 before update on public.leave_requests
+for each row execute function public.handle_updated_at();
+
+-- Lunch Records table
+create table if not exists public.lunch_records (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.profiles(id) on delete cascade,
+  meal_date date not null,
+  has_bento boolean not null default false,
+  has_rice boolean not null default false,
+  cost integer not null default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (user_id, meal_date)
+);
+
+drop trigger if exists lunch_records_updated_at on public.lunch_records;
+create trigger lunch_records_updated_at
+before update on public.lunch_records
 for each row execute function public.handle_updated_at();
 
 -- View to calculate leave balance (Updated to use num_days column)

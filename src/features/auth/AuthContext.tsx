@@ -1,29 +1,27 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '../../lib/supabaseClient';
+import { getErrorMessage } from '../../lib/errors';
 import type { Profile } from '../../types/database';
-import { LoadingSpinner } from '../../components/ui/States';
-
-interface AuthContextType {
-  session: Session | null;
-  user: User | null;
-  profile: Profile | null;
-  signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  isLoading: boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { ErrorState, LoadingSpinner } from '../../components/ui/States';
+import { AuthContext } from './authContextCore';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     // Initial session fetch
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        setAuthError(`セッション情報の取得に失敗しました: ${getErrorMessage(error)}`);
+        setIsLoading(false);
+        return;
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -42,8 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(currentUser);
       
       if (currentUser) {
+        setAuthError('');
         fetchProfile(currentUser.id);
       } else {
+        setAuthError('');
         setProfile(null);
         setIsLoading(false);
       }
@@ -86,8 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (error) {
-        console.error('Error fetching profile:', error);
+        setProfile(null);
+        setAuthError(`プロフィール情報の取得に失敗しました: ${getErrorMessage(error)}`);
       } else {
+        setAuthError('');
         setProfile(data as Profile);
       }
     } finally {
@@ -109,17 +111,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
   }
 
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <ErrorState message={authError} />
+      </div>
+    );
+  }
+
   return (
     <AuthContext.Provider value={{ session, user, profile, signOut, refreshProfile, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
 }
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};

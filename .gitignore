@@ -11,6 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
+.codex-tools/
+.superpowers/
+vite-dev.*
 
 # Editor directories and files
 .vscode/*
